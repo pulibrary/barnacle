@@ -1,6 +1,6 @@
 # Barnacle MVP Contracts
 
-This document defines the stable “contracts” between the three MVP layers:
+This document defines the stable “contracts”[^1] between the three MVP layers:
 
 - **IIIF models** (`barnacle_iiif.v2`)
 - **ATR engines** (`barnacle_atr`)
