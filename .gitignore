@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual envs / tooling
+.venv/
+.pdm-python
+.pdm.toml
+.pdm-build/
+dist/
+build/
+*.egg-info/
+
+# Test/cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# OS/editor
+.DS_Store
