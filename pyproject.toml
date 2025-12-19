@@ -1,0 +1,19 @@
+[project]
+name = "barnacle"
+version = "0.1.0"
+description = "IIIF-based OCR/ATR tooling and pipelines for high-quality text extraction from scanned resources."
+authors = [
+    {name = "Cliff Wulfman", email = "cwulfman@princeton.edu"},
+]
+dependencies = []
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
