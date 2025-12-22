@@ -30,7 +30,6 @@ dev = [
   "pytest>=8",
   "pytest-cov>=6",
   "ruff>=0.6",
-  "mypy>=1.10",
   "types-requests>=2.32.0.20240712", # harmless even if unused
 ]
 
@@ -45,11 +44,23 @@ ignore = []
 [tool.ruff.lint.isort]
 known-first-party = ["barnacle"]
 
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+include = ["src", "tests"]
+
+# If you start seeing "cannot be resolved" for src-layout imports, add:
+# extraPaths = ["src"]
+
+# Practical defaults for MVP:
+reportMissingTypeStubs = "none"
+reportUnknownMemberType = "none"
+reportUnknownVariableType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownParameterType = "none"
+reportUnknownLambdaType = "none"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --maxfail=1 --color=yes --strict-markers --durations=10"
 
-[tool.mypy]
-python_version = "3.12"
-strict = true
-mypy_path = ["src"]

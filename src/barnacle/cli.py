@@ -8,11 +8,19 @@ Current focus:
 
 from __future__ import annotations
 
+from csv import DictReader
 import json
-import sys
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
+
+import hashlib
+import os
+import subprocess
+import tempfile
+import time
+from datetime import datetime, timezone
 
 import httpx
 import typer
@@ -60,6 +68,125 @@ def load_manifest(path_or_url: str) -> dict[str, Any]:
         raise typer.BadParameter(f"File not found: {p}") from e
     except json.JSONDecodeError as e:
         raise typer.BadParameter(f"Invalid JSON in file: {p} ({e})") from e
+
+
+
+
+def is_collection_v2(obj: dict[str, Any]) -> bool:
+    return obj.get("@type") == "sc:Collection"
+
+
+def is_manifest_v2(obj: dict[str, Any]) -> bool:
+    return obj.get("@type") == "sc:Manifest"
+
+
+def iter_manifest_targets(path_or_url: str) -> Iterable[tuple[str, dict[str, Any]]]:
+    """
+    Yields (manifest_id, manifest_json) pairs.
+
+    If the root JSON is an sc:Manifest, yields exactly that one.
+    If the root JSON is an sc:Collection, yields each member manifest referenced in `manifests[*].@id`.
+
+    Note: This intentionally does not recurse into nested collections for the MVP.
+    """
+    root = load_manifest(path_or_url)
+    if is_manifest_v2(root):
+        yield (path_or_url, root)
+        return
+
+    if not is_collection_v2(root):
+        raise typer.BadParameter(
+            f"Root @type must be sc:Manifest or sc:Collection (got {root.get('@type')!r})."
+        )
+
+    manifests = root.get("manifests") or []
+    if not isinstance(manifests, list) or not manifests:
+        raise typer.BadParameter("Collection has no `manifests` list to process.")
+
+    for i, m in enumerate(manifests):
+        if not isinstance(m, dict) or "@id" not in m:
+            raise typer.BadParameter(f"Collection.manifests[{i}] missing @id.")
+        manifest_id = str(m["@id"])
+        yield (manifest_id, load_manifest(manifest_id))
+
+
+def _sha1(s: str) -> str:
+    return hashlib.sha1(s.encode("utf-8")).hexdigest()
+
+
+def fetch_bytes(url: str, *, timeout: float = 30.0) -> bytes:
+    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+        resp = client.get(url)
+        resp.raise_for_status()
+        return resp.content
+
+
+def resolve_kraken_model(model_ref: str, *, auto_install: bool = True) -> str:
+    """
+    Resolves a Kraken model reference.
+
+    - If `model_ref` looks like a DOI and `auto_install` is True, runs `kraken get <doi>`.
+      It then tries to extract a model filename from the output (e.g. `... (model files: foo.mlmodel)`).
+    - Otherwise returns `model_ref` unchanged.
+    """
+    looks_like_doi = model_ref.startswith("10.") or "zenodo." in model_ref
+    if not (looks_like_doi and auto_install):
+        return model_ref
+
+    try:
+        proc = subprocess.run(
+            ["kraken", "get", model_ref],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except FileNotFoundError as e:
+        raise typer.BadParameter(
+            "Kraken CLI not found. Install `kraken` and ensure `kraken` is on your PATH."
+        ) from e
+    except subprocess.CalledProcessError as e:
+        raise typer.BadParameter(f"`kraken get` failed:\n{e.stderr or e.stdout}") from e
+
+    out = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    # best-effort parse: "(model files: urdu_best.mlmodel)"
+    m = re.search(r"\(model files:\s*([^\)]+)\)", out)
+    if m:
+        # take first token, strip commas
+        first = m.group(1).strip().split()[0].strip(",")
+        return first
+
+    # Fallback: just return the DOI and let the downstream call error clearly.
+    return model_ref
+
+
+def run_kraken_ocr(image_path: Path, *, model: str) -> str:
+    """
+    Runs Kraken OCR on a single image via the CLI.
+
+    Uses the pattern from Kraken docs:
+        kraken -i <input> <output> ocr -m <model>
+    """
+    with tempfile.TemporaryDirectory(prefix="barnacle-kraken-") as td:
+        out_path = Path(td) / "out.txt"
+        try:
+            subprocess.run(
+                ["kraken", "-i", str(image_path), str(out_path), "binarize", "segment", "-bl", "ocr", "-m", model],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except FileNotFoundError as e:
+            raise typer.BadParameter(
+                "Kraken CLI not found. Install `kraken` and ensure `kraken` is on your PATH."
+            ) from e
+        except subprocess.CalledProcessError as e:
+            raise typer.BadParameter(f"Kraken OCR failed:\n{e.stderr or e.stdout}") from e
+
+        if out_path.exists():
+            return out_path.read_text(encoding="utf-8", errors="replace")
+        else:
+            print("kraken returned no text")
+            return ""
 
 
 def iiif_image_url(
@@ -133,8 +260,8 @@ def validate_manifest_v2(manifest: dict[str, Any]) -> list[ValidationIssue]:
     t = manifest.get("@type")
     if t is None:
         err("@type", "Missing @type; expected 'sc:Manifest'.")
-    elif t != "sc:Manifest":
-        err("@type", f"Unexpected @type={t!r}; expected 'sc:Manifest' (Presentation 2.x).")
+    elif t not in ["sc:Manifest", "sc:Collection"]:
+        err("@type", f"Unexpected @type={t!r}; expected 'sc:Manifest' or sc:Collection (Presentation 2.x).")
 
     if "@id" not in manifest:
         err("@id", "Missing @id (manifest identifier).")
@@ -195,6 +322,145 @@ def validate_cmd(
         raise typer.Exit(code=2)
 
     typer.echo("✅ Validation passed (MVP expectations).")
+
+@app.command("validate_all")
+def validate_all_cmd(
+        path_to_csv_file: str = typer.Argument(..., help="Path to Figgy report"),
+) -> None:
+    """Validate a table of IIIF Presentation 2.x manifests against MVP expectations."""
+    with Path(path_to_csv_file).open('r') as csv_file:
+        reader:DictReader = DictReader(csv_file)
+        for row in reader:
+            manifest_url:str = row['manifest_url']
+            try:
+                m: dict[str, Any] = fetch_manifest(manifest_url)
+            except httpx.HTTPError as e:
+                typer.echo(f"❌ : Could not access manifest: {e}")
+                continue
+
+            issues = validate_manifest_v2(m)
+            if issues:
+                typer.echo(f"❌ Validation failed: {len(issues)} issue(s)\n")
+                for i, issue in enumerate(issues, start=1):
+                    typer.echo(f"{i:>3}. {issue.path}: {issue.message}")
+            else:
+                typer.echo("✅ Validation passed (MVP expectations).")
+
+
+
+
+
+
+@app.command("ocr")
+def ocr_cmd(
+    manifest_or_collection: str = typer.Argument(
+        ..., help="IIIF Presentation 2.x manifest or collection JSON path or URL"
+    ),
+    model: str = typer.Option(
+        ..., "--model", help="Kraken model ref: DOI, installed model name, or filesystem path"
+    ),
+    out: Path = typer.Option(
+        ..., "--out", help="Output JSONL path (appends per-page records immediately)"
+    ),
+    max_pages: int | None = typer.Option(
+        None, "--max-pages", help="Optional cap on number of canvases/pages per manifest"
+    ),
+    cache_dir: Path = typer.Option(
+        Path(".barnacle-cache"), "--cache-dir", help="Cache directory for downloaded images"
+    ),
+    size: str = typer.Option(DEFAULT_IIIF_SIZE, help="IIIF size parameter"),
+    fmt: str = typer.Option(DEFAULT_IIIF_FORMAT, help="IIIF format (e.g., jpg, png)"),
+    quality: str = typer.Option(DEFAULT_IIIF_QUALITY, help="IIIF quality (e.g., default)"),
+    region: str = typer.Option(DEFAULT_IIIF_REGION, help="IIIF region (e.g., full)"),
+    rotation: str = typer.Option(DEFAULT_IIIF_ROTATION, help="IIIF rotation (e.g., 0)"),
+    source_metadata_id: str | None = typer.Option(
+        None, "--source-metadata-id", help="Optional provenance field (CSV column in pipeline mode)"
+    ),
+    ark: str | None = typer.Option(
+        None, "--ark", help="Optional provenance field (CSV column in pipeline mode)"
+    ),
+    model_auto_install: bool = typer.Option(
+        True, "--model-auto-install/--no-model-auto-install", help="If model looks like a DOI, run `kraken get` first"
+    ),
+) -> None:
+    """
+    Runs Kraken OCR over a IIIF v2 manifest (or a v2 collection of manifests) and writes JSONL.
+
+    Example:
+        barnacle ocr <manifest-or-collection> --model 10.5281/zenodo.14585602 --out out.jsonl --max-pages 5
+    """
+    out = out.expanduser()
+    cache_dir = cache_dir.expanduser()
+    img_cache = cache_dir / "images"
+    img_cache.mkdir(parents=True, exist_ok=True)
+
+    resolved_model = resolve_kraken_model(model, auto_install=model_auto_install)
+
+    def append_record(rec: dict[str, Any]) -> None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+    for manifest_id, manifest_json in iter_manifest_targets(manifest_or_collection):
+        issues = validate_manifest_v2(manifest_json)
+        if issues:
+            typer.echo(f"❌ Validation failed for {manifest_id}: {len(issues)} issue(s); skipping.", err=True)
+            for i, issue in enumerate(issues, start=1):
+                typer.echo(f"{i:>3}. {issue.path}: {issue.message}", err=True)
+            continue
+
+        pages_processed = 0
+        for c_i, canvas in enumerate(iter_canvases_v2(manifest_json)):
+            if max_pages is not None and pages_processed >= max_pages:
+                break
+
+            # pull first Image API service id from this canvas
+            try:
+                service_id = canvas["images"][0]["resource"]["service"]["@id"]
+            except Exception:
+                typer.echo(f"⚠️  canvas[{c_i}] missing images[0].resource.service.@id; skipping.", err=True)
+                continue
+
+            image_url = iiif_image_url(
+                service_id,
+                region=region,
+                size=size,
+                rotation=rotation,
+                quality=quality,
+                fmt=fmt,
+            )
+
+            # cache download
+            cache_key = _sha1(image_url)
+            img_path = img_cache / f"{cache_key}.{fmt}"
+            if not img_path.exists():
+                try:
+                    img_bytes = fetch_bytes(image_url)
+                except httpx.HTTPError as e:
+                    typer.echo(f"❌ Failed to download image: {image_url} ({e}); skipping.", err=True)
+                    continue
+                img_path.write_bytes(img_bytes)
+
+            t0 = time.perf_counter()
+            text_out = run_kraken_ocr(img_path, model=resolved_model)
+            elapsed_ms = int((time.perf_counter() - t0) * 1000)
+
+            rec = {
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "engine": "kraken",
+                "model": {"ref": model, "resolved": resolved_model},
+                "manifest_url": manifest_id,
+                "canvas_id": canvas.get("@id"),
+                "image_url": image_url,
+                "elapsed_ms": elapsed_ms,
+                "text": text_out,
+                "source_metadata_id": source_metadata_id,
+                "ark": ark,
+            }
+            append_record(rec)
+            pages_processed += 1
+            typer.echo(f"✅ {manifest_id} canvas[{c_i}] → appended ({elapsed_ms} ms)")
+
 
 
 @app.command("sample-image-url")
