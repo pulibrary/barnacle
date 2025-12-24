@@ -21,3 +21,5 @@ coverage.xml
 
 # OS/editor
 .DS_Store
+
+.barnacle-cache/
