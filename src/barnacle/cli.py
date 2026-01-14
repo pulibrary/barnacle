@@ -26,6 +26,8 @@ import httpx
 import typer
 import logging
 
+from barnacle.ocr import KrakenBackend
+
 app = typer.Typer(add_completion=False, help="Barnacle MVP tooling")
 
 DEFAULT_IIIF_SIZE = "!3000,3000"  # long-side constraint; good OCR/throughput tradeoff
@@ -189,74 +191,6 @@ def fetch_bytes(url: str, *, timeout: float = 30.0) -> bytes:
         resp = client.get(url)
         resp.raise_for_status()
         return resp.content
-
-
-def resolve_kraken_model(model_ref: str, *, auto_install: bool = True) -> str:
-    """
-    Resolves a Kraken model reference.
-
-    - If `model_ref` looks like a DOI and `auto_install` is True, runs `kraken get <doi>`.
-      It then tries to extract a model filename from the output (e.g. `... (model files: foo.mlmodel)`).
-    - Otherwise returns `model_ref` unchanged.
-    """
-    looks_like_doi = model_ref.startswith("10.") or "zenodo." in model_ref
-    if not (looks_like_doi and auto_install):
-        return model_ref
-
-    try:
-        proc = subprocess.run(
-            ["kraken", "get", model_ref],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except FileNotFoundError as e:
-        raise typer.BadParameter(
-            "Kraken CLI not found. Install `kraken` and ensure `kraken` is on your PATH."
-        ) from e
-    except subprocess.CalledProcessError as e:
-        raise typer.BadParameter(f"`kraken get` failed:\n{e.stderr or e.stdout}") from e
-
-    out = (proc.stdout or "") + "\n" + (proc.stderr or "")
-    # best-effort parse: "(model files: urdu_best.mlmodel)"
-    m = re.search(r"\(model files:\s*([^\)]+)\)", out)
-    if m:
-        # take first token, strip commas
-        first = m.group(1).strip().split()[0].strip(",")
-        return first
-
-    # Fallback: just return the DOI and let the downstream call error clearly.
-    return model_ref
-
-
-def run_kraken_ocr(image_path: Path, *, model: str) -> str:
-    """
-    Runs Kraken OCR on a single image via the CLI.
-
-    Uses the pattern from Kraken docs:
-        kraken -i <input> <output> ocr -m <model>
-    """
-    with tempfile.TemporaryDirectory(prefix="barnacle-kraken-") as td:
-        out_path = Path(td) / "out.txt"
-        try:
-            subprocess.run(
-                ["kraken", "-i", str(image_path), str(out_path), "binarize", "segment", "-bl", "ocr", "-m", model],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-        except FileNotFoundError as e:
-            raise typer.BadParameter(
-                "Kraken CLI not found. Install `kraken` and ensure `kraken` is on your PATH."
-            ) from e
-        except subprocess.CalledProcessError as e:
-            raise typer.BadParameter(f"Kraken OCR failed:\n{e.stderr or e.stdout}") from e
-
-        if out_path.exists():
-            return out_path.read_text(encoding="utf-8", errors="replace")
-        else:
-            LOGGER.info("kraken_no_output", extra={"image_path": str(image_path), "model": model})
-            return ""
 
 
 def iiif_image_url(
@@ -468,12 +402,14 @@ def ocr_cmd(
     global LOGGER
     LOGGER = setup_logging(log_level)
 
+    backend = KrakenBackend(model_auto_install=model_auto_install, logger=LOGGER)
+
     out = out.expanduser()
     cache_dir = cache_dir.expanduser()
     img_cache = cache_dir / "images"
     img_cache.mkdir(parents=True, exist_ok=True)
 
-    resolved_model = resolve_kraken_model(model, auto_install=model_auto_install)
+    resolved_model = backend.resolve_model(model)
 
     processed_keys = load_processed_keys(out) if resume else set()
     if processed_keys:
@@ -540,14 +476,14 @@ def ocr_cmd(
                 img_path.write_bytes(img_bytes)
 
             t0 = time.perf_counter()
-            text_out = run_kraken_ocr(img_path, model=resolved_model)
+            text_out = backend.ocr_image(img_path, model=resolved_model)
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
 
             rec = {
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "page_key": k,
                 "canvas_index": c_i,
-                "engine": "kraken",
+                "engine": backend.name,
                 "model": {"ref": model, "resolved": resolved_model},
                 "manifest_url": manifest_id,
                 "canvas_id": canvas.get("@id"),
