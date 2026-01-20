@@ -247,13 +247,59 @@ def _first_image_service_obj(canvas: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def validate_collection_v2(collection: dict[str, Any]) -> list[ValidationIssue]:
+    """
+    Validate the minimal expectations for a IIIF Collection (Presentation 2.x).
+
+    Checks:
+    - Collection has proper @type
+    - Collection has @id
+    - Collection has manifests[] array
+    - Each manifest reference has @id
+    """
+    issues: list[ValidationIssue] = []
+
+    def err(path: str, message: str) -> None:
+        issues.append(ValidationIssue(path=path, message=message))
+
+    # Basic identity
+    t = collection.get("@type")
+    if t is None:
+        err("@type", "Missing @type; expected 'sc:Collection'.")
+    elif t != "sc:Collection":
+        err("@type", f"Unexpected @type={t!r}; expected 'sc:Collection' (Presentation 2.x).")
+
+    if "@id" not in collection:
+        err("@id", "Missing @id (collection identifier).")
+
+    # manifests array
+    manifests = collection.get("manifests")
+    if not isinstance(manifests, list):
+        err("manifests", "Missing or invalid manifests[]; expected a list of manifest references.")
+        return issues  # nothing more to validate safely
+
+    if not manifests:
+        err("manifests", "Empty manifests[]; expected at least one manifest reference.")
+
+    for i, m in enumerate(manifests):
+        if not isinstance(m, dict):
+            err(f"manifests[{i}]", "Manifest reference is not an object.")
+            continue
+        if "@id" not in m:
+            err(f"manifests[{i}].@id", "Manifest reference missing @id.")
+
+    return issues
+
+
 def validate_manifest_v2(manifest: dict[str, Any]) -> list[ValidationIssue]:
     """
-    Validate the minimal expectations for the MVP pipeline.
+    Validate the minimal expectations for a IIIF Manifest (Presentation 2.x) in the MVP pipeline.
 
     Deliberately narrow:
     - traversal and image URL resolution for OCR
     - NOT a full IIIF Presentation 2.1 validator.
+
+    Note: For Collections, use validate_collection_v2() instead.
     """
     issues: list[ValidationIssue] = []
 
@@ -264,8 +310,8 @@ def validate_manifest_v2(manifest: dict[str, Any]) -> list[ValidationIssue]:
     t = manifest.get("@type")
     if t is None:
         err("@type", "Missing @type; expected 'sc:Manifest'.")
-    elif t not in ["sc:Manifest", "sc:Collection"]:
-        err("@type", f"Unexpected @type={t!r}; expected 'sc:Manifest' or sc:Collection (Presentation 2.x).")
+    elif t != "sc:Manifest":
+        err("@type", f"Unexpected @type={t!r}; expected 'sc:Manifest' (Presentation 2.x).")
 
     if "@id" not in manifest:
         err("@id", "Missing @id (manifest identifier).")
@@ -313,16 +359,31 @@ def validate_manifest_v2(manifest: dict[str, Any]) -> list[ValidationIssue]:
 
 @app.command("validate")
 def validate_cmd(
-    manifest: str = typer.Argument(..., help="Manifest JSON path or URL"),
+    manifest_or_collection: str = typer.Argument(..., help="Manifest or Collection JSON path or URL"),
 ) -> None:
-    """Validate a IIIF Presentation 2.x manifest against MVP expectations."""
-    m = load_manifest(manifest)
-    issues = validate_manifest_v2(m)
+    """Validate a IIIF Presentation 2.x manifest or collection against MVP expectations."""
+    root = load_manifest(manifest_or_collection)
+    all_issues: list[tuple[str, list[ValidationIssue]]] = []
 
-    if issues:
-        typer.echo(f"❌ Validation failed: {len(issues)} issue(s)\n")
-        for i, issue in enumerate(issues, start=1):
-            typer.echo(f"{i:>3}. {issue.path}: {issue.message}")
+    # If root is a Collection, validate its structure first
+    if is_collection_v2(root):
+        collection_issues = validate_collection_v2(root)
+        if collection_issues:
+            all_issues.append((manifest_or_collection, collection_issues))
+
+    # Validate each manifest (works for both single manifests and collections)
+    for manifest_id, manifest_json in iter_manifest_targets(manifest_or_collection):
+        issues = validate_manifest_v2(manifest_json)
+        if issues:
+            all_issues.append((manifest_id, issues))
+
+    if all_issues:
+        total_issues = sum(len(issues) for _, issues in all_issues)
+        typer.echo(f"❌ Validation failed: {total_issues} issue(s) across {len(all_issues)} resource(s)\n")
+        for resource_id, issues in all_issues:
+            typer.echo(f"\nResource: {resource_id}")
+            for i, issue in enumerate(issues, start=1):
+                typer.echo(f"  {i:>3}. {issue.path}: {issue.message}")
         raise typer.Exit(code=2)
 
     typer.echo("✅ Validation passed (MVP expectations).")
@@ -504,36 +565,36 @@ def ocr_cmd(
 
 @app.command("sample-image-url")
 def sample_image_url_cmd(
-    manifest: str = typer.Argument(..., help="Manifest JSON path or URL"),
+    manifest_or_collection: str = typer.Argument(..., help="Manifest or Collection JSON path or URL"),
     size: str = typer.Option(DEFAULT_IIIF_SIZE, help="IIIF size parameter"),
     fmt: str = typer.Option(DEFAULT_IIIF_FORMAT, help="IIIF format (e.g., jpg, png)"),
     quality: str = typer.Option(DEFAULT_IIIF_QUALITY, help="IIIF quality (e.g., default)"),
     region: str = typer.Option(DEFAULT_IIIF_REGION, help="IIIF region (e.g., full)"),
     rotation: str = typer.Option(DEFAULT_IIIF_ROTATION, help="IIIF rotation (e.g., 0)"),
 ) -> None:
-    """Print a sample IIIF Image API URL derived from the manifest."""
-    m = load_manifest(manifest)
+    """Print a sample IIIF Image API URL derived from the manifest or collection."""
+    # Iterate through manifests (handles both single manifests and collections)
+    for manifest_id, manifest_json in iter_manifest_targets(manifest_or_collection):
+        for canvas in iter_canvases_v2(manifest_json):
+            service_obj = _first_image_service_obj(canvas)
+            if not service_obj:
+                continue
+            service_id = service_obj.get("@id")
+            if not isinstance(service_id, str) or not service_id:
+                continue
 
-    for canvas in iter_canvases_v2(m):
-        service_obj = _first_image_service_obj(canvas)
-        if not service_obj:
-            continue
-        service_id = service_obj.get("@id")
-        if not isinstance(service_id, str) or not service_id:
-            continue
+            url = iiif_image_url(
+                service_id,
+                size=size,
+                fmt=fmt,
+                quality=quality,
+                region=region,
+                rotation=rotation,
+            )
+            typer.echo(url)
+            raise typer.Exit(code=0)
 
-        url = iiif_image_url(
-            service_id,
-            size=size,
-            fmt=fmt,
-            quality=quality,
-            region=region,
-            rotation=rotation,
-        )
-        typer.echo(url)
-        raise typer.Exit(code=0)
-
-    typer.echo("Could not find an Image API service @id in the manifest.", err=True)
+    typer.echo("Could not find an Image API service @id in any manifest.", err=True)
     raise typer.Exit(code=2)
 
 
