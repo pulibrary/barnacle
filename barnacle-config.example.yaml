@@ -1,0 +1,64 @@
+# Barnacle Configuration Example
+# Copy this file to barnacle-config.yaml and customize for your environment
+
+# Storage paths
+storage:
+  # Image cache directory (can be shared across jobs for deduplication)
+  cache_dir: "/scratch/${USER}/barnacle/cache"
+
+  # Output directory for OCR results
+  output_dir: "/scratch/${USER}/barnacle/runs"
+
+  # Model storage location
+  model_dir: "/project/barnacle/models"
+
+# OCR settings
+ocr:
+  # Default Kraken model (DOI, path, or model name)
+  default_model: "models/McCATMuS_nfd_nofix_V1.mlmodel"
+
+  # Auto-install models from DOI if not found
+  model_auto_install: true
+
+  # IIIF Image API parameters
+  iiif:
+    size: "!3000,3000"
+    format: "jpg"
+    quality: "default"
+    region: "full"
+    rotation: "0"
+
+# Processing settings
+processing:
+  # Maximum pages per manifest (null for unlimited)
+  max_pages: null
+
+  # Resume processing (skip already-processed pages)
+  resume: true
+
+  # Log level (DEBUG, INFO, WARNING, ERROR)
+  log_level: "INFO"
+
+# SLURM settings (for cluster deployment)
+slurm:
+  # Default partition
+  partition: "batch"
+
+  # Resources per job
+  cpus_per_task: 4
+  memory: "16G"
+  time: "02:00:00"
+
+  # GPU settings (if using GPU acceleration)
+  gpu:
+    enabled: false
+    partition: "gpu"
+    gres: "gpu:1"
+
+# Container settings (for deployment)
+container:
+  # Container image (DockerHub or Singularity path)
+  image: "docker://tuftsttsrt/barnacle:latest"
+
+  # Singularity cache directory
+  singularity_cache: "${HOME}/.singularity"
