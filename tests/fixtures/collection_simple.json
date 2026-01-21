@@ -1,0 +1,18 @@
+{
+  "@context": "http://iiif.io/api/presentation/2/context.json",
+  "@id": "https://example.org/collection/simple",
+  "@type": "sc:Collection",
+  "label": "Simple Test Collection",
+  "manifests": [
+    {
+      "@id": "https://example.org/manifest/1",
+      "@type": "sc:Manifest",
+      "label": "Manifest 1"
+    },
+    {
+      "@id": "https://example.org/manifest/2",
+      "@type": "sc:Manifest",
+      "label": "Manifest 2"
+    }
+  ]
+}

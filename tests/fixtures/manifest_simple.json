@@ -1,0 +1,72 @@
+{
+  "@context": "http://iiif.io/api/presentation/2/context.json",
+  "@id": "https://example.org/manifest/simple",
+  "@type": "sc:Manifest",
+  "label": "Simple Test Manifest",
+  "metadata": [
+    {
+      "label": "Title",
+      "value": "Test Document"
+    }
+  ],
+  "sequences": [
+    {
+      "@id": "https://example.org/sequence/normal",
+      "@type": "sc:Sequence",
+      "canvases": [
+        {
+          "@id": "https://example.org/canvas/1",
+          "@type": "sc:Canvas",
+          "label": "Page 1",
+          "width": 2000,
+          "height": 3000,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "motivation": "sc:painting",
+              "resource": {
+                "@id": "https://example.org/image/1.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "width": 2000,
+                "height": 3000,
+                "service": {
+                  "@context": "http://iiif.io/api/image/2/context.json",
+                  "@id": "https://iiif.example.org/image1",
+                  "profile": "http://iiif.io/api/image/2/level2.json"
+                }
+              },
+              "on": "https://example.org/canvas/1"
+            }
+          ]
+        },
+        {
+          "@id": "https://example.org/canvas/2",
+          "@type": "sc:Canvas",
+          "label": "Page 2",
+          "width": 2000,
+          "height": 3000,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "motivation": "sc:painting",
+              "resource": {
+                "@id": "https://example.org/image/2.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "width": 2000,
+                "height": 3000,
+                "service": {
+                  "@context": "http://iiif.io/api/image/2/context.json",
+                  "@id": "https://iiif.example.org/image2",
+                  "profile": "http://iiif.io/api/image/2/level2.json"
+                }
+              },
+              "on": "https://example.org/canvas/2"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

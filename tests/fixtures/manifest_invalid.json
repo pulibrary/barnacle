@@ -1,0 +1,35 @@
+{
+  "@context": "http://iiif.io/api/presentation/2/context.json",
+  "@id": "https://example.org/manifest/invalid",
+  "@type": "sc:Manifest",
+  "label": "Invalid Manifest (missing image service)",
+  "sequences": [
+    {
+      "@id": "https://example.org/sequence/normal",
+      "@type": "sc:Sequence",
+      "canvases": [
+        {
+          "@id": "https://example.org/canvas/1",
+          "@type": "sc:Canvas",
+          "label": "Page 1",
+          "width": 2000,
+          "height": 3000,
+          "images": [
+            {
+              "@type": "oa:Annotation",
+              "motivation": "sc:painting",
+              "resource": {
+                "@id": "https://example.org/image/1.jpg",
+                "@type": "dctypes:Image",
+                "format": "image/jpeg",
+                "width": 2000,
+                "height": 3000
+              },
+              "on": "https://example.org/canvas/1"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
