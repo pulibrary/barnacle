@@ -1,0 +1,53 @@
+# Docker build context exclusions
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# PDM
+.pdm.toml
+.pdm-python
+__pypackages__/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local files
+cache/
+output/
+runs/
+models/
+*.jsonl
+manifests_smoke.txt
+docs/dev-bookmark.md
+
+# macOS
+.DS_Store
