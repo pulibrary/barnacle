@@ -91,23 +91,90 @@ docker run --rm -it \
 
 ## Pushing to DockerHub
 
-### Login
+### Prerequisites
+
+- DockerHub account (sign up at https://hub.docker.com)
+- Docker image built locally (`barnacle:latest`)
+
+### Step 1: Login
 
 ```bash
 docker login
+# Enter your DockerHub username and password (or access token)
 ```
 
-### Tag and Push
+### Step 2: Tag the Image
+
+Tag your local image with your DockerHub username:
 
 ```bash
-# Tag for your DockerHub account
+# Format: docker tag <local-image> <dockerhub-username>/<repository-name>:<tag>
 docker tag barnacle:latest yourusername/barnacle:latest
-docker tag barnacle:latest yourusername/barnacle:v0.1.0
 
-# Push
+# Also tag with version number for releases
+docker tag barnacle:latest yourusername/barnacle:v0.1.0
+```
+
+**Example** (if your username is `pulibrary`):
+```bash
+docker tag barnacle:latest pulibrary/barnacle:latest
+docker tag barnacle:latest pulibrary/barnacle:v0.1.0
+```
+
+### Step 3: Push to DockerHub
+
+```bash
 docker push yourusername/barnacle:latest
 docker push yourusername/barnacle:v0.1.0
 ```
+
+The push will take several minutes depending on your upload speed (image is ~2-3 GB with dependencies).
+
+### Step 4: Verify the Upload
+
+Check that the image is available:
+
+```bash
+# Visit in browser
+https://hub.docker.com/r/yourusername/barnacle
+
+# Or test pulling
+docker pull yourusername/barnacle:latest
+```
+
+### Complete Example Workflow
+
+```bash
+# 1. Build the image
+docker build -t barnacle:latest .
+
+# 2. Login to DockerHub
+docker login
+
+# 3. Tag with your username (replace 'pulibrary')
+docker tag barnacle:latest pulibrary/barnacle:latest
+docker tag barnacle:latest pulibrary/barnacle:v0.1.0
+
+# 4. Push both tags
+docker push pulibrary/barnacle:latest
+docker push pulibrary/barnacle:v0.1.0
+
+# 5. Verify
+docker pull pulibrary/barnacle:latest
+```
+
+### Repository Settings
+
+- **Privacy**: Repository will be public by default (can be changed in DockerHub settings)
+- **Auto-creation**: Repository will be created automatically on first push
+- **Tags**: Using both `latest` and version tags (e.g., `v0.1.0`) is recommended for tracking releases
+
+### Tagging Best Practices
+
+- `latest`: Always points to the most recent stable build
+- `v0.1.0`, `v0.2.0`, etc.: Specific version releases
+- `dev`: Development/unstable builds (optional)
+- Git commit SHA: For exact reproducibility (optional)
 
 ## Using on Tufts HPC Cluster
 
