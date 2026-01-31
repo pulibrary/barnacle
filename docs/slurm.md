@@ -81,6 +81,8 @@ For more control, run each step manually:
 
 #### Step 1: Prepare Manifest List
 
+**Option A: From IIIF Collection URL**
+
 ```bash
 # Parse collection
 python scripts/prepare_collection.py \
@@ -92,6 +94,33 @@ python scripts/prepare_collection.py \
 # - manifests.txt (TSV: manifest_url, output_path)
 # - /scratch/$USER/barnacle/runs/lapidus/ocr/ (created directory)
 ```
+
+**Option B: From CSV File**
+
+If you have manifest URLs pre-extracted in a CSV file (e.g., from a catalog export), you can bypass IIIF Collection parsing:
+
+```bash
+# From CSV file with 'manifest_url' column
+python scripts/prepare_collection.py \
+    data/lapidus_lar.csv \
+    --csv \
+    --manifest-list manifests.txt \
+    --output-dir /scratch/$USER/barnacle/runs/lapidus/ocr
+```
+
+The CSV file must have a header row with a `manifest_url` column. Additional columns (e.g., `source_metadata_id`, `ark`) are ignored by this script but can be useful for post-processing.
+
+Example CSV format:
+```csv
+source_metadata_id,ark,manifest_url
+99106449843506421,ark:/88435/dckk91g0036,https://figgy.princeton.edu/concern/scanned_resources/a1c525c8-7b0c-4bc2-ad4c-709830afc16b/manifest
+99106365393506421,ark:/88435/dcs7526r87k,https://figgy.princeton.edu/concern/scanned_resources/bc000721-7ef1-482e-a18e-0c2c10e67f3d/manifest
+```
+
+This is useful when:
+- The IIIF Collection is very large and slow to parse
+- Manifest URLs have been pre-extracted from another system
+- You want to process a specific subset of manifests
 
 #### Step 2: Submit SLURM Job Array
 

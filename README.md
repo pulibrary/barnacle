@@ -123,15 +123,19 @@ Barnacle is organized as modular Python packages with clear separation of concer
 ### Deployment Architecture
 
 ```
-Collection URL
+Collection URL or CSV file
     ↓
-Coordinator: Parse collection → manifest list (TSV)
+Coordinator: Parse collection/CSV → manifest list (TSV)
     ↓
 SLURM Job Array: N parallel workers
     ├─ Worker 1: process_manifest() → SHA1_1.jsonl
     ├─ Worker 2: process_manifest() → SHA1_2.jsonl
     └─ Worker N: process_manifest() → SHA1_N.jsonl
 ```
+
+**Input sources:**
+- IIIF Collection URL: Automatically traverses and extracts manifest URLs
+- CSV file (`--csv` flag): Reads pre-extracted manifest URLs from `manifest_url` column
 
 **Key design decisions:**
 - **Per-manifest output files** (SHA1-named): Enables parallel processing without file contention
