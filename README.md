@@ -182,6 +182,7 @@ Barnacle writes **JSONL files** (one record per page) with comprehensive provena
 
 - **[Docker Deployment Guide](docs/docker.md)**: Building containers, testing locally, pushing to DockerHub
 - **[SLURM Deployment Guide](docs/slurm.md)**: HPC cluster deployment, job arrays, monitoring
+- **[Batch Processing Guide](docs/batch-processing.md)**: GNU Parallel for non-HPC environments (VMs, workstations)
 - **[Deployment Plan](docs/deployment-plan.md)**: Full architecture design and production roadmap
 - **[Tests](tests/)**: Comprehensive test suite with fixtures
 
