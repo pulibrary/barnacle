@@ -16,9 +16,9 @@ WORKDIR /app
 COPY pyproject.toml pdm.lock README.md ./
 COPY src/ ./src/
 
-# Install PDM and project dependencies
-RUN pip install --no-cache-dir pdm && \
-    pdm install --prod --no-editable
+# Install the package directly with pip (uses pyproject.toml)
+# This places 'barnacle' in /usr/local/bin for direct execution
+RUN pip install --no-cache-dir .
 
 # Create mount points for runtime volumes
 # These will be bind-mounted from HPC storage at runtime
@@ -27,6 +27,6 @@ RUN mkdir -p /models /cache /output
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Entry point: Use PDM to run barnacle commands
-ENTRYPOINT ["pdm", "run", "barnacle"]
+# Entry point: barnacle is directly available in PATH
+ENTRYPOINT ["barnacle"]
 CMD ["--help"]

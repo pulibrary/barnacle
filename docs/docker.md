@@ -17,24 +17,36 @@ The Tufts HPC deployment follows this pattern:
 - DockerHub account (for pushing images)
 - Access to Tufts HPC cluster with Singularity
 
+## Architecture Notes
+
+The HPC cluster runs on Intel/AMD processors (linux/amd64). If building on Apple Silicon (M1/M2/M3), you must specify the target platform to ensure compatibility:
+
+```bash
+docker build --platform linux/amd64 -t barnacle:latest .
+```
+
+All build commands in this guide include the `--platform linux/amd64` flag. This ensures the image will run correctly on the HPC cluster regardless of your local machine's architecture.
+
+> **Note:** Building for a different architecture uses emulation and will be slower than native builds. This is expected behavior.
+
 ## Building the Docker Image
 
 ### Basic Build
 
 ```bash
 # From project root
-docker build -t barnacle:latest .
+docker build --platform linux/amd64 -t barnacle:latest .
 ```
 
 ### Tagged Build
 
 ```bash
 # Tag with version
-docker build -t barnacle:v0.1.0 .
+docker build --platform linux/amd64 -t barnacle:v0.1.0 .
 
 # Tag for DockerHub (replace 'yourusername')
-docker build -t yourusername/barnacle:latest .
-docker build -t yourusername/barnacle:v0.1.0 .
+docker build --platform linux/amd64 -t yourusername/barnacle:latest .
+docker build --platform linux/amd64 -t yourusername/barnacle:v0.1.0 .
 ```
 
 ### Build with Model Pre-installed (Optional)
@@ -43,7 +55,7 @@ If you want to bake the Kraken model into the image:
 
 ```bash
 # Build with custom Dockerfile that includes model download
-docker build -t barnacle:latest \
+docker build --platform linux/amd64 -t barnacle:latest \
   --build-arg MODEL_DOI=10.5281/zenodo.14585602 \
   .
 ```
@@ -146,7 +158,7 @@ docker pull yourusername/barnacle:latest
 
 ```bash
 # 1. Build the image
-docker build -t barnacle:latest .
+docker build --platform linux/amd64 -t barnacle:latest .
 
 # 2. Login to DockerHub
 docker login
@@ -209,6 +221,63 @@ singularity exec \
     --max-pages 5
 ```
 
+## container-mod Integration
+
+[container-mod](https://github.com/cea-hpc/modules-container) is a CEA extension for Environment Modules that allows containerized applications to be used as regular module commands on HPC clusters. The barnacle container is designed to work with container-mod.
+
+### How It Works
+
+The barnacle executable is installed directly at `/usr/local/bin/barnacle`, making it callable without going through an entrypoint wrapper. This allows container-mod to expose `barnacle` as a native command to users who load the module.
+
+### Verifying Direct Execution
+
+To confirm the container supports direct execution (required for container-mod):
+
+```bash
+# Build the image
+docker build --platform linux/amd64 -t barnacle:test .
+
+# Verify barnacle is in PATH
+docker run --rm barnacle:test which barnacle
+# Should show: /usr/local/bin/barnacle
+
+# Test calling barnacle directly (bypassing entrypoint)
+docker run --rm --entrypoint "" barnacle:test barnacle --help
+```
+
+### Example container-mod Configuration
+
+HPC administrators can create a modulefile that uses container-mod to expose barnacle. Here's an example configuration:
+
+```tcl
+#%Module1.0
+module-whatis "Barnacle OCR pipeline for IIIF manifests"
+
+# Container image location
+set container_image /cluster/software/containers/barnacle.sif
+
+# Use container-mod to expose the barnacle command
+container-mod load $container_image
+container-mod exec barnacle /usr/local/bin/barnacle
+```
+
+With this configuration, users can simply run:
+
+```bash
+module load barnacle
+barnacle ocr https://example.com/manifest --model /models/model.mlmodel
+```
+
+### Bind Mounts for container-mod
+
+When configuring container-mod, ensure the following paths are bind-mounted:
+
+| Container Path | Purpose | Suggested Host Path |
+|----------------|---------|---------------------|
+| `/models` | Kraken model files (read-only) | `/cluster/shared/barnacle/models` |
+| `/cache` | Downloaded images (read-write) | User scratch or temp directory |
+| `/output` | OCR output files (read-write) | User scratch directory |
+
 ## Volume Mounts
 
 The container expects three volumes to be mounted:
@@ -235,6 +304,21 @@ docker run --rm \
 ```
 
 ## Troubleshooting
+
+### Architecture Mismatch Errors
+
+If you see errors like `exec format error` or the container fails to start on the HPC cluster, the image was likely built for the wrong architecture:
+
+```bash
+# Check the image architecture
+docker inspect barnacle:latest | grep Architecture
+# Should show: "Architecture": "amd64"
+
+# If it shows "arm64", rebuild with the platform flag
+docker build --platform linux/amd64 -t barnacle:latest .
+```
+
+This commonly happens when building on Apple Silicon Macs without specifying `--platform linux/amd64`.
 
 ### Permission Errors
 
