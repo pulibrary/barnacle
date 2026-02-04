@@ -288,21 +288,6 @@ The container expects three volumes to be mounted:
 | `/cache` | Downloaded images (read-write) | `/scratch/$USER/barnacle/cache` |
 | `/output` | OCR output JSONL files (read-write) | `/scratch/$USER/barnacle/runs` |
 
-## Container Configuration
-
-### Storage Paths
-
-Use `barnacle-config.yaml` to configure storage paths. Mount the config file at runtime:
-
-```bash
-docker run --rm \
-  -v $(pwd)/barnacle-config.yaml:/app/barnacle-config.yaml:ro \
-  -v $(pwd)/models:/models:ro \
-  -v $(pwd)/cache:/cache \
-  -v $(pwd)/output:/output \
-  barnacle:latest ocr <MANIFEST_URL> --config /app/barnacle-config.yaml
-```
-
 ## Troubleshooting
 
 ### Architecture Mismatch Errors
