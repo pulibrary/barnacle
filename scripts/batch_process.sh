@@ -8,6 +8,7 @@
 # Usage:
 #   ./scripts/batch_process.sh \
 #       --manifest-list manifests.txt \
+#       --output-dir ./output \
 #       --model 10.5281/zenodo.14585602 \
 #       [--jobs 8] \
 #       [--resume] \
@@ -15,14 +16,14 @@
 #
 # Examples:
 #   # Basic run with default parallelism
-#   ./scripts/batch_process.sh --manifest-list manifests.txt --model 10.5281/zenodo.14585602
+#   ./scripts/batch_process.sh --manifest-list manifests.txt --output-dir ./output --model 10.5281/zenodo.14585602
 #
 #   # Resume a previous interrupted run
-#   ./scripts/batch_process.sh --manifest-list manifests.txt --model 10.5281/zenodo.14585602 \
+#   ./scripts/batch_process.sh --manifest-list manifests.txt --output-dir ./output --model 10.5281/zenodo.14585602 \
 #       --resume --joblog batch_20260122_123456.log
 #
 #   # Run in tmux session for long jobs
-#   ./scripts/batch_process.sh --manifest-list manifests.txt --model 10.5281/zenodo.14585602 --tmux
+#   ./scripts/batch_process.sh --manifest-list manifests.txt --output-dir ./output --model 10.5281/zenodo.14585602 --tmux
 
 set -euo pipefail
 
@@ -36,6 +37,7 @@ RESUME=false
 USE_TMUX=false
 JOBLOG="batch_$(date +%Y%m%d_%H%M%S).log"
 MANIFEST_LIST=""
+OUTPUT_DIR=""
 MODEL=""
 
 # =============================================================================
@@ -47,10 +49,11 @@ show_help() {
 GNU Parallel Batch Processing for Barnacle OCR Pipeline
 
 Usage:
-  ./scripts/batch_process.sh --manifest-list <FILE> --model <MODEL> [OPTIONS]
+  ./scripts/batch_process.sh --manifest-list <FILE> --output-dir <DIR> --model <MODEL> [OPTIONS]
 
 Required Arguments:
-  --manifest-list <FILE>   Path to manifest list file (TSV: manifest_url, output_path)
+  --manifest-list <FILE>   Path to manifest list file (one URL per line)
+  --output-dir <DIR>       Directory for output JSONL files
   --model <MODEL>          Kraken model reference (DOI or path)
 
 Options:
@@ -64,17 +67,20 @@ Examples:
   # Basic run
   ./scripts/batch_process.sh \
       --manifest-list manifests.txt \
+      --output-dir ./output \
       --model 10.5281/zenodo.14585602
 
   # Run with 4 workers
   ./scripts/batch_process.sh \
       --manifest-list manifests.txt \
+      --output-dir ./output \
       --model 10.5281/zenodo.14585602 \
       --jobs 4
 
   # Resume interrupted batch
   ./scripts/batch_process.sh \
       --manifest-list manifests.txt \
+      --output-dir ./output \
       --model 10.5281/zenodo.14585602 \
       --resume \
       --joblog batch_20260122_123456.log
@@ -82,17 +88,15 @@ Examples:
   # Run in tmux for long jobs
   ./scripts/batch_process.sh \
       --manifest-list manifests.txt \
+      --output-dir ./output \
       --model 10.5281/zenodo.14585602 \
       --tmux
 
 Manifest List Format:
-  The manifest list should be a TSV file with two columns:
-    <manifest_url><TAB><output_path>
+  The manifest list should contain one manifest URL per line.
 
-  Generate with scripts/prepare_collection.py:
-    python scripts/prepare_collection.py <COLLECTION_URL> \
-        --manifest-list manifests.txt \
-        --output-dir ./output
+  Generate with scripts/prepare_manifests.py:
+    python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
 
 See docs/batch-processing.md for detailed documentation.
 EOF
@@ -106,6 +110,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --manifest-list)
             MANIFEST_LIST="$2"
+            shift 2
+            ;;
+        --output-dir)
+            OUTPUT_DIR="$2"
             shift 2
             ;;
         --model)
@@ -146,6 +154,12 @@ done
 
 if [[ -z "$MANIFEST_LIST" ]]; then
     echo "Error: --manifest-list is required" >&2
+    echo "Use --help for usage information." >&2
+    exit 1
+fi
+
+if [[ -z "$OUTPUT_DIR" ]]; then
+    echo "Error: --output-dir is required" >&2
     echo "Use --help for usage information." >&2
     exit 1
 fi
@@ -200,13 +214,16 @@ fi
 # Build Command
 # =============================================================================
 
+# Ensure output directory exists
+mkdir -p "$OUTPUT_DIR"
+
 # Construct the barnacle command to run for each manifest
-# {1} = manifest_url, {2} = output_path (from TSV columns)
-BARNACLE_CMD="barnacle ocr {1} --model '$MODEL' --out {2} --resume"
+# {1} = manifest_url (one per line)
+# Output path is computed using SHA1 hash of the manifest URL
+BARNACLE_CMD="barnacle ocr {1} --model '$MODEL' --out '$OUTPUT_DIR/\$(echo -n {1} | sha1sum | cut -d\" \" -f1).jsonl' --resume"
 
 # Build parallel options
 PARALLEL_OPTS=(
-    "--colsep" "\t"
     "--jobs" "$JOBS"
     "--progress"
     "--joblog" "$JOBLOG"
@@ -231,6 +248,7 @@ echo "Barnacle Batch Processing (GNU Parallel)"
 echo "=========================================="
 echo "Manifest List:  $MANIFEST_LIST"
 echo "Manifest Count: $MANIFEST_COUNT"
+echo "Output Dir:     $OUTPUT_DIR"
 echo "Model:          $MODEL"
 echo "Parallel Jobs:  $JOBS"
 echo "Job Log:        $JOBLOG"
@@ -265,6 +283,7 @@ set -euo pipefail
 cd "$(pwd)"
 echo "Starting batch processing in tmux session..."
 echo "Manifest count: $MANIFEST_COUNT"
+echo "Output dir:     $OUTPUT_DIR"
 echo "Parallel jobs:  $JOBS"
 echo ""
 cat '$MANIFEST_LIST' | parallel ${PARALLEL_OPTS[@]} '$BARNACLE_CMD'
@@ -318,7 +337,7 @@ else
         echo "Batch processing finished with errors (exit code: $EXIT_CODE)"
         echo ""
         echo "To resume failed jobs:"
-        echo "  $0 --manifest-list $MANIFEST_LIST --model $MODEL --resume --joblog $JOBLOG"
+        echo "  $0 --manifest-list $MANIFEST_LIST --output-dir $OUTPUT_DIR --model $MODEL --resume --joblog $JOBLOG"
     fi
     echo ""
     echo "Job log: $JOBLOG"

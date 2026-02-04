@@ -1,19 +1,19 @@
 #!/bin/bash
 
-# End-to-end script for processing IIIF Collections with Barnacle
+# End-to-end script for processing manifests with Barnacle
 #
 # This script orchestrates the complete workflow:
-# 1. Parse collection and generate manifest list
-# 2. Submit SLURM job array to process manifests in parallel
-# 3. Monitor job progress
+# 1. Submit SLURM job array to process manifests in parallel
+# 2. Monitor job progress
+#
+# The manifest list should be pre-generated using:
+#   python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
 #
 # Usage:
-#   ./slurm/run_collection.sh <COLLECTION_URL> [RUN_NAME]
+#   ./slurm/run_collection.sh <MANIFEST_LIST> [RUN_NAME]
 #
 # Example:
-#   ./slurm/run_collection.sh \
-#     https://example.org/collection/lapidus \
-#     lapidus_batch_20260122
+#   ./slurm/run_collection.sh manifests.txt lapidus_batch_20260122
 
 set -euo pipefail
 
@@ -21,22 +21,27 @@ set -euo pipefail
 # Configuration
 # =============================================================================
 
-# Required: Collection URL
+# Required: Manifest list file
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <COLLECTION_URL> [RUN_NAME]" >&2
+    echo "Usage: $0 <MANIFEST_LIST> [RUN_NAME]" >&2
     echo "" >&2
     echo "Example:" >&2
-    echo "  $0 https://example.org/collection/123 lapidus_batch" >&2
+    echo "  $0 manifests.txt lapidus_batch" >&2
     exit 1
 fi
 
-COLLECTION_URL="$1"
+MANIFEST_LIST="$1"
 RUN_NAME="${2:-$(date +%Y%m%d_%H%M%S)}"
+
+# Validate manifest list exists
+if [[ ! -f "$MANIFEST_LIST" ]]; then
+    echo "Error: Manifest list not found: $MANIFEST_LIST" >&2
+    exit 1
+fi
 
 # Paths (customize these for your cluster environment)
 BASE_DIR="${BASE_DIR:-/scratch/$USER/barnacle}"
 RUN_DIR="$BASE_DIR/runs/$RUN_NAME"
-MANIFEST_LIST="$RUN_DIR/manifests.txt"
 OUTPUT_DIR="$RUN_DIR/ocr"
 LOG_DIR="$RUN_DIR/logs"
 
@@ -78,47 +83,33 @@ fi
 
 mkdir -p "$RUN_DIR" "$OUTPUT_DIR" "$LOG_DIR" "$CACHE_DIR"
 
+# Count manifests
+MANIFEST_COUNT=$(wc -l < "$MANIFEST_LIST")
+
+if [[ $MANIFEST_COUNT -eq 0 ]]; then
+    echo "Error: No manifests found in $MANIFEST_LIST" >&2
+    exit 1
+fi
+
 echo "=========================================="
 echo "Barnacle Collection Processing"
 echo "=========================================="
-echo "Collection:    $COLLECTION_URL"
+echo "Manifest List: $MANIFEST_LIST"
+echo "Manifest Count: $MANIFEST_COUNT"
 echo "Run Name:      $RUN_NAME"
 echo "Run Directory: $RUN_DIR"
+echo "Output Dir:    $OUTPUT_DIR"
 echo "Container:     $CONTAINER"
 echo "Model:         $MODEL_PATH"
 echo "Cache:         $CACHE_DIR"
 echo "=========================================="
 
 # =============================================================================
-# Step 1: Prepare Manifest List
+# Submit SLURM Job Array
 # =============================================================================
 
 echo ""
-echo "Step 1: Preparing manifest list..."
-echo ""
-
-python scripts/prepare_collection.py \
-    "$COLLECTION_URL" \
-    --manifest-list "$MANIFEST_LIST" \
-    --output-dir "$OUTPUT_DIR"
-
-# Count manifests
-MANIFEST_COUNT=$(wc -l < "$MANIFEST_LIST")
-
-if [[ $MANIFEST_COUNT -eq 0 ]]; then
-    echo "Error: No manifests found in collection" >&2
-    exit 1
-fi
-
-echo ""
-echo "✅ Prepared $MANIFEST_COUNT manifests"
-
-# =============================================================================
-# Step 2: Submit SLURM Job Array
-# =============================================================================
-
-echo ""
-echo "Step 2: Submitting SLURM job array..."
+echo "Submitting SLURM job array..."
 echo ""
 
 JOB_OUTPUT=$(sbatch \
@@ -129,14 +120,14 @@ JOB_OUTPUT=$(sbatch \
     --time="$SLURM_TIME" \
     --output="$LOG_DIR/barnacle-%A_%a.out" \
     --error="$LOG_DIR/barnacle-%A_%a.err" \
-    --export=ALL,MANIFEST_LIST="$MANIFEST_LIST",MODEL_PATH="$MODEL_PATH",CONTAINER="$CONTAINER",CACHE_DIR="$CACHE_DIR" \
+    --export=ALL,MANIFEST_LIST="$MANIFEST_LIST",OUTPUT_DIR="$OUTPUT_DIR",MODEL_PATH="$MODEL_PATH",CONTAINER="$CONTAINER",CACHE_DIR="$CACHE_DIR" \
     slurm/process_manifest.sh)
 
 JOB_ID=$(echo "$JOB_OUTPUT" | awk '{print $4}')
 
 # Save run metadata
 cat > "$RUN_DIR/run_metadata.txt" <<EOF
-Collection URL: $COLLECTION_URL
+Manifest List: $MANIFEST_LIST
 Run Name: $RUN_NAME
 Start Time: $(date)
 SLURM Job ID: $JOB_ID
@@ -154,7 +145,7 @@ EOF
 
 echo ""
 echo "=========================================="
-echo "✅ SLURM Job Array Submitted"
+echo "SLURM Job Array Submitted"
 echo "=========================================="
 echo "Job ID:        $JOB_ID"
 echo "Array Tasks:   1-$MANIFEST_COUNT"
@@ -197,7 +188,7 @@ if [[ "${WAIT:-false}" == "true" ]]; then
     done
 
     echo ""
-    echo "✅ Job array completed"
+    echo "Job array completed"
     echo ""
     echo "Check results:"
     echo "  sacct -j $JOB_ID --format=JobID,State,ExitCode | grep FAILED"

@@ -16,7 +16,8 @@
 #     slurm/process_manifest.sh
 #
 # Required environment variables:
-#   MANIFEST_LIST - Path to manifest list file (TSV: manifest_url, output_path)
+#   MANIFEST_LIST - Path to manifest list file (one URL per line)
+#   OUTPUT_DIR    - Directory for output JSONL files
 #   MODEL_PATH    - Path to Kraken model file
 #   CONTAINER     - Path to Singularity container (.sif file)
 #
@@ -31,6 +32,7 @@ set -euo pipefail
 
 # Required variables (fail if not set)
 MANIFEST_LIST="${MANIFEST_LIST:?Error: MANIFEST_LIST not set}"
+OUTPUT_DIR="${OUTPUT_DIR:?Error: OUTPUT_DIR not set}"
 MODEL_PATH="${MODEL_PATH:?Error: MODEL_PATH not set}"
 CONTAINER="${CONTAINER:?Error: CONTAINER not set}"
 
@@ -57,17 +59,17 @@ fi
 # Get Manifest Info for This Array Task
 # =============================================================================
 
-# Extract line for this array task
-LINE=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$MANIFEST_LIST")
+# Extract manifest URL for this array task (one URL per line)
+MANIFEST_URL=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$MANIFEST_LIST")
 
-if [[ -z "$LINE" ]]; then
+if [[ -z "$MANIFEST_URL" ]]; then
     echo "Error: No manifest found for array task ID $SLURM_ARRAY_TASK_ID" >&2
     exit 1
 fi
 
-# Parse TSV: manifest_url <TAB> output_path
-MANIFEST_URL=$(echo "$LINE" | cut -f1)
-OUTPUT_PATH=$(echo "$LINE" | cut -f2)
+# Compute output path using SHA1 hash of manifest URL
+SHA1_HASH=$(echo -n "$MANIFEST_URL" | sha1sum | cut -d' ' -f1)
+OUTPUT_PATH="${OUTPUT_DIR}/${SHA1_HASH}.jsonl"
 
 # =============================================================================
 # Log Job Info
@@ -92,11 +94,8 @@ echo "=========================================="
 # Prepare Directories
 # =============================================================================
 
-# Ensure cache directory exists
+# Ensure cache and output directories exist
 mkdir -p "$CACHE_DIR"
-
-# Ensure output directory exists
-OUTPUT_DIR=$(dirname "$OUTPUT_PATH")
 mkdir -p "$OUTPUT_DIR"
 
 # =============================================================================
