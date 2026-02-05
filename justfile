@@ -111,6 +111,21 @@ ocr-resume-10:
 
 
 # ----------------------------
+# Batch runner (simple)
+# ----------------------------
+
+# Usage:
+#   just run manifests.txt output/
+#   just run manifests.txt output/ 5
+run MANIFEST_LIST OUTPUT_DIR MAX_PAGES="":
+    @if [ -n "{{MAX_PAGES}}" ]; then \
+      pdm run barnacle run "{{MANIFEST_LIST}}" "{{OUTPUT_DIR}}" --max-pages "{{MAX_PAGES}}"; \
+    else \
+      pdm run barnacle run "{{MANIFEST_LIST}}" "{{OUTPUT_DIR}}"; \
+    fi
+
+
+# ----------------------------
 # Batch runner (resume-safe)
 # ----------------------------
 

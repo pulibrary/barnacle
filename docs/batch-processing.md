@@ -55,6 +55,36 @@ sudo apt install tmux
 
 ## Quick Start
 
+### Simple Batch Processing with `barnacle run`
+
+The simplest way to batch process manifests is with the `barnacle run` command:
+
+```bash
+# Process all manifests in a list file
+pdm run barnacle run manifests.txt output/
+
+# Limit pages per manifest (useful for testing)
+pdm run barnacle run manifests.txt output/ --max-pages 5
+```
+
+**Features:**
+- Automatically names output files using SHA1 hash of manifest URL
+- Resume-safe: skips manifests that already have output files
+- Simple one-line command for most batch processing needs
+
+**When to use `barnacle run` vs `batch_process.sh`:**
+
+| Use `barnacle run` when... | Use `batch_process.sh` when... |
+|----------------------------|--------------------------------|
+| You want the simplest option | You need parallel processing |
+| Processing sequentially is fine | You have many manifests (100+) |
+| You don't need detailed job logs | You need resume from job logs |
+| Quick testing or small batches | Production runs on VMs |
+
+For parallel processing with more control, continue with `batch_process.sh` below.
+
+---
+
 ### 1. Prepare Manifest List
 
 Generate a manifest list from a CSV file:
