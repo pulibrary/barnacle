@@ -57,6 +57,9 @@ pdm run barnacle ocr <MANIFEST_URL> \
     --out output.jsonl \
     --max-pages 10
 
+# Run OCR on multiple manifests (batch processing)
+pdm run barnacle run manifests.txt output/ --max-pages 5
+
 # Sample IIIF image URL from manifest
 pdm run barnacle sample-image-url <MANIFEST_URL>
 ```
@@ -118,6 +121,7 @@ Barnacle is organized as modular Python packages with clear separation of concer
 4. **`barnacle.cli`** - Command-line interface
    - `validate`: Validate manifests/collections
    - `ocr`: Run OCR locally or on single manifests
+   - `run`: Process multiple manifests from a list file
    - `sample-image-url`: Extract IIIF image URLs
 
 ### Deployment Architecture
@@ -247,6 +251,30 @@ pdm run pytest --cov=barnacle --cov-report=html
 # Run specific test file
 pdm run pytest tests/test_iiif_models.py
 ```
+
+### Using just
+
+Barnacle includes a `justfile` with common workflow commands. Install [just](https://github.com/casey/just) and run `just` to see available recipes:
+
+```bash
+# Install just (macOS)
+brew install just
+
+# Install just (Ubuntu/Debian)
+sudo apt install just
+
+# List all available commands
+just
+
+# Common commands
+just test           # Run tests
+just lint           # Run linter
+just check          # Run lint + tests
+just ocr-smoke      # Quick OCR test (2 pages)
+just run manifests.txt output/  # Batch process manifests
+```
+
+Run `just --list` to see all available recipes with descriptions.
 
 ### Code Structure
 
