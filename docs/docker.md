@@ -206,9 +206,44 @@ docker run --rm barnacle:test which barnacle
 docker run --rm --entrypoint "" barnacle:test barnacle --help
 ```
 
-## CI/CD Integration (Optional)
+## CI/CD: Automated Docker Builds
 
-To automate Docker builds and pushes with GitHub Actions, see `.github/workflows/docker-build.yml` (if configured).
+Docker images are automatically built and pushed to DockerHub when release tags are created.
+
+### How It Works
+
+When you push a version tag (e.g., `v1.0.0`), GitHub Actions will:
+
+1. Build the Docker image for `linux/amd64`
+2. Push to DockerHub with both the version tag and `latest`
+3. Cache layers using GitHub Actions cache for faster subsequent builds
+
+### Creating a Release
+
+```bash
+# Tag a release
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+This will trigger a build and push:
+- `cwulfman01/barnacle:0.2.0`
+- `cwulfman01/barnacle:latest`
+
+### Required GitHub Secrets
+
+The repository needs these secrets configured in **Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|--------|-------------|
+| `DOCKERHUB_USERNAME` | DockerHub username (cwulfman01) |
+| `DOCKERHUB_TOKEN` | DockerHub access token ([create one here](https://hub.docker.com/settings/security)) |
+
+> **Note:** Use a DockerHub access token, not your password. Access tokens are more secure and can be revoked independently.
+
+### Manual Builds
+
+The automated pipeline handles releases, but you can still build locally for development and testing using the instructions in the sections above.
 
 ## Next Steps
 
