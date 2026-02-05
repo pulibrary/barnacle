@@ -1,25 +1,29 @@
-# Docker Deployment Guide
+# Docker Build and Push Guide
 
-This guide covers building, testing, and deploying the Barnacle container for the Tufts HPC cluster.
-
-## Workflow Overview
-
-The Tufts HPC deployment follows this pattern:
-
-1. **Build** Docker image locally or in CI
-2. **Push** to DockerHub
-3. **Pull** and convert to Singularity on HPC cluster
-4. **Run** via Singularity with SLURM
+This guide covers building, testing, and pushing the Barnacle Docker image to DockerHub.
 
 ## Prerequisites
 
 - Docker installed locally
 - DockerHub account (for pushing images)
-- Access to Tufts HPC cluster with Singularity
+
+## Quick Start (Pre-built Image)
+
+A pre-built image is available on DockerHub:
+
+**DockerHub Repository:** https://hub.docker.com/r/cwulfman01/barnacle
+
+```bash
+# Pull the latest image
+docker pull cwulfman01/barnacle:latest
+
+# Or pull a specific version
+docker pull cwulfman01/barnacle:v0.1.0
+```
 
 ## Architecture Notes
 
-The HPC cluster runs on Intel/AMD processors (linux/amd64). If building on Apple Silicon (M1/M2/M3), you must specify the target platform to ensure compatibility:
+The Tufts HPC cluster runs on Intel/AMD processors (linux/amd64). If building on Apple Silicon (M1/M2/M3), you must specify the target platform to ensure compatibility:
 
 ```bash
 docker build --platform linux/amd64 -t barnacle:latest .
@@ -44,9 +48,9 @@ docker build --platform linux/amd64 -t barnacle:latest .
 # Tag with version
 docker build --platform linux/amd64 -t barnacle:v0.1.0 .
 
-# Tag for DockerHub (replace 'yourusername')
-docker build --platform linux/amd64 -t yourusername/barnacle:latest .
-docker build --platform linux/amd64 -t yourusername/barnacle:v0.1.0 .
+# Tag for DockerHub
+docker build --platform linux/amd64 -t cwulfman01/barnacle:latest .
+docker build --platform linux/amd64 -t cwulfman01/barnacle:v0.1.0 .
 ```
 
 ### Build with Model Pre-installed (Optional)
@@ -121,23 +125,17 @@ Tag your local image with your DockerHub username:
 
 ```bash
 # Format: docker tag <local-image> <dockerhub-username>/<repository-name>:<tag>
-docker tag barnacle:latest yourusername/barnacle:latest
+docker tag barnacle:latest cwulfman01/barnacle:latest
 
 # Also tag with version number for releases
-docker tag barnacle:latest yourusername/barnacle:v0.1.0
-```
-
-**Example** (if your username is `pulibrary`):
-```bash
-docker tag barnacle:latest pulibrary/barnacle:latest
-docker tag barnacle:latest pulibrary/barnacle:v0.1.0
+docker tag barnacle:latest cwulfman01/barnacle:v0.1.0
 ```
 
 ### Step 3: Push to DockerHub
 
 ```bash
-docker push yourusername/barnacle:latest
-docker push yourusername/barnacle:v0.1.0
+docker push cwulfman01/barnacle:latest
+docker push cwulfman01/barnacle:v0.1.0
 ```
 
 The push will take several minutes depending on your upload speed (image is ~2-3 GB with dependencies).
@@ -148,10 +146,10 @@ Check that the image is available:
 
 ```bash
 # Visit in browser
-https://hub.docker.com/r/yourusername/barnacle
+https://hub.docker.com/r/cwulfman01/barnacle
 
 # Or test pulling
-docker pull yourusername/barnacle:latest
+docker pull cwulfman01/barnacle:latest
 ```
 
 ### Complete Example Workflow
@@ -163,16 +161,16 @@ docker build --platform linux/amd64 -t barnacle:latest .
 # 2. Login to DockerHub
 docker login
 
-# 3. Tag with your username (replace 'pulibrary')
-docker tag barnacle:latest pulibrary/barnacle:latest
-docker tag barnacle:latest pulibrary/barnacle:v0.1.0
+# 3. Tag with your username
+docker tag barnacle:latest cwulfman01/barnacle:latest
+docker tag barnacle:latest cwulfman01/barnacle:v0.1.0
 
 # 4. Push both tags
-docker push pulibrary/barnacle:latest
-docker push pulibrary/barnacle:v0.1.0
+docker push cwulfman01/barnacle:latest
+docker push cwulfman01/barnacle:v0.1.0
 
 # 5. Verify
-docker pull pulibrary/barnacle:latest
+docker pull cwulfman01/barnacle:latest
 ```
 
 ### Repository Settings
@@ -188,46 +186,9 @@ docker pull pulibrary/barnacle:latest
 - `dev`: Development/unstable builds (optional)
 - Git commit SHA: For exact reproducibility (optional)
 
-## Using on Tufts HPC Cluster
+## container-mod Compatibility
 
-### Pull and Convert to Singularity
-
-On the HPC login node:
-
-```bash
-# Pull from DockerHub and convert to Singularity
-singularity pull barnacle.sif docker://yourusername/barnacle:latest
-
-# Or build from Docker daemon (if Docker image is available locally)
-docker save yourusername/barnacle:latest | singularity build barnacle.sif docker-archive:/dev/stdin
-```
-
-### Test with Singularity
-
-```bash
-# Test help
-singularity exec barnacle.sif barnacle --help
-
-# Test OCR with bind mounts
-singularity exec \
-  --bind /path/to/models:/models:ro \
-  --bind /path/to/cache:/cache \
-  --bind /path/to/output:/output \
-  barnacle.sif barnacle ocr \
-    https://figgy.princeton.edu/concern/scanned_resources/<ID>/manifest \
-    --model /models/McCATMuS_nfd_nofix_V1.mlmodel \
-    --cache-dir /cache \
-    --out /output/test.jsonl \
-    --max-pages 5
-```
-
-## container-mod Integration
-
-[container-mod](https://github.com/cea-hpc/modules-container) is a CEA extension for Environment Modules that allows containerized applications to be used as regular module commands on HPC clusters. The barnacle container is designed to work with container-mod.
-
-### How It Works
-
-The barnacle executable is installed directly at `/usr/local/bin/barnacle`, making it callable without going through an entrypoint wrapper. This allows container-mod to expose `barnacle` as a native command to users who load the module.
+The barnacle container is designed to work with [container-mod](https://github.com/cea-hpc/modules-container), a tool used on HPC clusters to expose containerized applications as module commands. The barnacle executable is installed directly at `/usr/local/bin/barnacle`, making it callable without going through an entrypoint wrapper.
 
 ### Verifying Direct Execution
 
@@ -245,106 +206,10 @@ docker run --rm barnacle:test which barnacle
 docker run --rm --entrypoint "" barnacle:test barnacle --help
 ```
 
-### Example container-mod Configuration
-
-HPC administrators can create a modulefile that uses container-mod to expose barnacle. Here's an example configuration:
-
-```tcl
-#%Module1.0
-module-whatis "Barnacle OCR pipeline for IIIF manifests"
-
-# Container image location
-set container_image /cluster/software/containers/barnacle.sif
-
-# Use container-mod to expose the barnacle command
-container-mod load $container_image
-container-mod exec barnacle /usr/local/bin/barnacle
-```
-
-With this configuration, users can simply run:
-
-```bash
-module load barnacle
-barnacle ocr https://example.com/manifest --model /models/model.mlmodel
-```
-
-### Bind Mounts for container-mod
-
-When configuring container-mod, ensure the following paths are bind-mounted:
-
-| Container Path | Purpose | Suggested Host Path |
-|----------------|---------|---------------------|
-| `/models` | Kraken model files (read-only) | `/cluster/shared/barnacle/models` |
-| `/cache` | Downloaded images (read-write) | User scratch or temp directory |
-| `/output` | OCR output files (read-write) | User scratch directory |
-
-## Volume Mounts
-
-The container expects three volumes to be mounted:
-
-| Mount Point | Purpose | Example HPC Path |
-|------------|---------|------------------|
-| `/models` | Kraken model files (read-only) | `/project/barnacle/models` |
-| `/cache` | Downloaded images (read-write) | `/scratch/$USER/barnacle/cache` |
-| `/output` | OCR output JSONL files (read-write) | `/scratch/$USER/barnacle/runs` |
-
-## Troubleshooting
-
-### Architecture Mismatch Errors
-
-If you see errors like `exec format error` or the container fails to start on the HPC cluster, the image was likely built for the wrong architecture:
-
-```bash
-# Check the image architecture
-docker inspect barnacle:latest | grep Architecture
-# Should show: "Architecture": "amd64"
-
-# If it shows "arm64", rebuild with the platform flag
-docker build --platform linux/amd64 -t barnacle:latest .
-```
-
-This commonly happens when building on Apple Silicon Macs without specifying `--platform linux/amd64`.
-
-### Permission Errors
-
-If you encounter permission errors with Singularity bind mounts:
-
-```bash
-# Run with your user ID explicitly
-singularity exec --bind /path/to/data:/data \
-  --home /tmp \
-  barnacle.sif barnacle ...
-```
-
-### libvips Errors
-
-If Kraken fails with image processing errors:
-
-```bash
-# Ensure libvips is installed in container (should be in Dockerfile)
-singularity exec barnacle.sif dpkg -l | grep libvips
-```
-
-### Model Not Found
-
-If Kraken can't find the model:
-
-```bash
-# Verify bind mount and model path
-ls -l /path/to/models/
-singularity exec --bind /path/to/models:/models barnacle.sif ls -l /models/
-```
-
 ## CI/CD Integration (Optional)
 
 To automate Docker builds and pushes with GitHub Actions, see `.github/workflows/docker-build.yml` (if configured).
 
 ## Next Steps
 
-Once the Singularity container is working on the HPC cluster, proceed to:
-
-1. Set up SLURM job array scripts (`slurm/process_manifest.sh`)
-2. Test parallel processing with a small collection
-3. Scale up to full production workloads
-
-See `docs/slurm.md` for SLURM integration details.
+For deploying to the Tufts HPC cluster, see [tufts_hpc.md](tufts_hpc.md).
