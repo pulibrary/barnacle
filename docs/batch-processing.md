@@ -57,28 +57,19 @@ sudo apt install tmux
 
 ### 1. Prepare Manifest List
 
-Generate a manifest list from an IIIF Collection:
+Generate a manifest list from a CSV file:
 ```bash
-python scripts/prepare_collection.py \
-    https://example.org/collection/lapidus \
-    --manifest-list manifests.txt \
-    --output-dir ./output
+python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
 ```
 
-Or from a CSV file:
-```bash
-python scripts/prepare_collection.py \
-    data/manifests.csv \
-    --csv \
-    --manifest-list manifests.txt \
-    --output-dir ./output
-```
+This validates each URL and writes valid manifest URLs to the output file (one per line).
 
 ### 2. Run Batch Processing
 
 ```bash
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602
 ```
 
@@ -86,7 +77,7 @@ This will:
 - Process manifests in parallel (default: half of available CPUs)
 - Show progress as jobs complete
 - Write a job log (e.g., `batch_20260122_143052.log`)
-- Create JSONL output files in the paths specified in manifests.txt
+- Create JSONL output files in the output directory (named by SHA1 hash of manifest URL)
 
 ## Full Workflow
 
@@ -108,11 +99,8 @@ mkdir -p output
 ### Step 2: Generate Manifest List
 
 ```bash
-# From IIIF Collection
-python scripts/prepare_collection.py \
-    https://figgy.princeton.edu/collections/lapidus/manifest \
-    --manifest-list manifests.txt \
-    --output-dir ./output
+# From CSV file
+python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
 
 # Check the generated list
 head manifests.txt
@@ -129,6 +117,7 @@ head -5 manifests.txt > test_manifests.txt
 # Run test batch
 ./scripts/batch_process.sh \
     --manifest-list test_manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602 \
     --jobs 2
 
@@ -141,6 +130,7 @@ ls -la output/*.jsonl
 ```bash
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602 \
     --jobs 8
 ```
@@ -155,6 +145,7 @@ For jobs that may run for hours or days, use one of these approaches to prevent 
 # Start in tmux session
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602 \
     --tmux
 
@@ -172,6 +163,7 @@ tmux new -s barnacle
 # Run the batch process
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602
 
 # Detach: Ctrl+B, then D
@@ -187,6 +179,7 @@ screen -S barnacle
 # Run the batch process
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602
 
 # Detach: Ctrl+A, then D
@@ -199,6 +192,7 @@ screen -S barnacle
 # Run in background with output logging
 nohup ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602 \
     > batch_output.log 2>&1 &
 
@@ -261,6 +255,7 @@ If processing is interrupted (Ctrl+C, system reboot, etc.), resume with:
 ```bash
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602 \
     --resume \
     --joblog batch_20260122_143052.log
@@ -301,6 +296,7 @@ Reduce parallelism to lower memory pressure:
 ```bash
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602 \
     --jobs 2
 ```
@@ -311,6 +307,7 @@ IIIF servers may rate-limit requests. Reduce parallelism:
 ```bash
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602 \
     --jobs 4
 ```
@@ -327,6 +324,7 @@ awk -F'\t' '$7 != 0 {print $9}' batch_20260122_143052.log
 # Resume just the failed jobs
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
+    --output-dir ./output \
     --model 10.5281/zenodo.14585602 \
     --resume \
     --joblog batch_20260122_143052.log
@@ -348,10 +346,11 @@ tmux kill-session -t barnacle
 ./scripts/batch_process.sh --help
 
 Usage:
-  ./scripts/batch_process.sh --manifest-list <FILE> --model <MODEL> [OPTIONS]
+  ./scripts/batch_process.sh --manifest-list <FILE> --output-dir <DIR> --model <MODEL> [OPTIONS]
 
 Required Arguments:
-  --manifest-list <FILE>   Path to manifest list file (TSV: manifest_url, output_path)
+  --manifest-list <FILE>   Path to manifest list file (one URL per line)
+  --output-dir <DIR>       Directory for output JSONL files
   --model <MODEL>          Kraken model reference (DOI or path)
 
 Options:

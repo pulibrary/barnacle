@@ -122,7 +122,7 @@ Once Docker image is on DockerHub:
 - `Dockerfile` - Container definition
 - `slurm/process_manifest.sh` - Job array worker
 - `slurm/run_collection.sh` - End-to-end orchestration
-- `scripts/prepare_collection.py` - Manifest list generation
+- `scripts/prepare_manifests.py` - Manifest list generation from CSV
 
 **Documentation:**
 - `README.md` - Project overview, quick start

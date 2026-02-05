@@ -15,9 +15,9 @@ Barnacle uses **SLURM job arrays** for parallel manifest processing:
 ## Architecture
 
 ```
-Collection URL
+CSV file (manifest URLs)
     ↓
-prepare_collection.py → manifests.txt (N manifests)
+prepare_manifests.py → manifests.txt (one URL per line)
     ↓
 SLURM Job Array (sbatch --array=1-N)
     ↓
@@ -48,7 +48,7 @@ SLURM Job Array (sbatch --array=1-N)
    - Output directory: `/scratch/$USER/barnacle/runs`
    - Model directory: `/project/barnacle/models`
 
-4. **Python environment** with Barnacle installed (for `prepare_collection.py`)
+4. **Python environment** with Barnacle installed (for `prepare_manifests.py`)
    - Can use same container or local installation
 
 ## Quick Start
@@ -58,22 +58,22 @@ SLURM Job Array (sbatch --array=1-N)
 Use `slurm/run_collection.sh` for automated workflow:
 
 ```bash
+# First, generate the manifest list (run once when source CSV changes)
+python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
+
 # Set environment variables (or edit script defaults)
 export CONTAINER=/project/barnacle/barnacle.sif
 export MODEL_PATH=/project/barnacle/models/McCATMuS_nfd_nofix_V1.mlmodel
 export CACHE_DIR=/scratch/$USER/barnacle/cache
 
 # Run collection
-./slurm/run_collection.sh \
-    https://example.org/collection/lapidus \
-    lapidus_batch_20260122
+./slurm/run_collection.sh manifests.txt lapidus_batch_20260122
 ```
 
 This will:
-1. Parse collection and generate manifest list
-2. Submit SLURM job array
-3. Print monitoring commands
-4. Save run metadata
+1. Submit SLURM job array
+2. Print monitoring commands
+3. Save run metadata
 
 ### Option B: Manual Step-by-Step
 
@@ -81,32 +81,20 @@ For more control, run each step manually:
 
 #### Step 1: Prepare Manifest List
 
-**Option A: From IIIF Collection URL**
-
-```bash
-# Parse collection
-python scripts/prepare_collection.py \
-    https://example.org/collection/lapidus \
-    --manifest-list manifests.txt \
-    --output-dir /scratch/$USER/barnacle/runs/lapidus/ocr
-
-# Outputs:
-# - manifests.txt (TSV: manifest_url, output_path)
-# - /scratch/$USER/barnacle/runs/lapidus/ocr/ (created directory)
-```
-
-**Option B: From CSV File**
-
-If you have manifest URLs pre-extracted in a CSV file (e.g., from a catalog export), you can bypass IIIF Collection parsing:
+Generate a validated manifest list from a CSV file:
 
 ```bash
 # From CSV file with 'manifest_url' column
-python scripts/prepare_collection.py \
-    data/lapidus_lar.csv \
-    --csv \
-    --manifest-list manifests.txt \
-    --output-dir /scratch/$USER/barnacle/runs/lapidus/ocr
+python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
+
+# Outputs:
+# - manifests.txt (one manifest URL per line)
 ```
+
+The script:
+- Validates each URL is reachable
+- Expands any IIIF Collections into their sub-manifests
+- Logs unreachable URLs to stderr
 
 The CSV file must have a header row with a `manifest_url` column. Additional columns (e.g., `source_metadata_id`, `ark`) are ignored by this script but can be useful for post-processing.
 
@@ -117,10 +105,7 @@ source_metadata_id,ark,manifest_url
 99106365393506421,ark:/88435/dcs7526r87k,https://figgy.princeton.edu/concern/scanned_resources/bc000721-7ef1-482e-a18e-0c2c10e67f3d/manifest
 ```
 
-This is useful when:
-- The IIIF Collection is very large and slow to parse
-- Manifest URLs have been pre-extracted from another system
-- You want to process a specific subset of manifests
+The manifest list can be version-controlled since it contains only URLs (output paths are computed at runtime).
 
 #### Step 2: Submit SLURM Job Array
 
@@ -367,7 +352,7 @@ cat logs/barnacle-<JOB_ID>_1.err
 Common issues:
 - Container not found: Check `CONTAINER` path
 - Model not found: Check `MODEL_PATH` path
-- Manifest list format: Verify TSV format (tab-separated)
+- Manifest list format: Verify one URL per line
 
 ### Singularity Bind Mount Errors
 

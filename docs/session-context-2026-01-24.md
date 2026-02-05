@@ -67,9 +67,9 @@ Completed transformation from MVP proof-of-concept to **production-ready HPC dep
 - `.dockerignore` - Optimized build context
 
 **SLURM integration:**
-- `scripts/prepare_collection.py`
-  - Parses collection → manifest list (TSV)
-  - Generates SHA1-based output paths
+- `scripts/prepare_manifests.py`
+  - Validates CSV → manifest list (one URL per line)
+  - Output paths computed at runtime via SHA1 hash
 
 - `slurm/process_manifest.sh`
   - Job array worker script
@@ -137,9 +137,9 @@ Completed transformation from MVP proof-of-concept to **production-ready HPC dep
 ### Architecture
 
 ```
-Collection URL
+CSV file (manifest URLs)
     ↓
-prepare_collection.py → manifests.txt (SHA1-based paths)
+prepare_manifests.py → manifests.txt (one URL per line)
     ↓
 SLURM Job Array (--array=1-N)
     ├─ Worker 1: process_manifest() → SHA1_1.jsonl
@@ -185,7 +185,7 @@ tests/
 Dockerfile                          # Container definition
 .dockerignore                       # Build optimization
 barnacle-config.example.yaml        # Config template (NOT USED YET)
-scripts/prepare_collection.py      # Manifest list generator
+scripts/prepare_manifests.py        # Manifest list generator from CSV
 slurm/process_manifest.sh           # Job array worker
 slurm/run_collection.sh             # End-to-end orchestration
 ```

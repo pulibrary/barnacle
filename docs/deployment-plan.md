@@ -326,38 +326,22 @@ singularity exec \
 
 #### 3.1 Manifest Preparation Script
 
-**File**: `scripts/prepare_collection.py`
+**File**: `scripts/prepare_manifests.py`
 
-```python
-#!/usr/bin/env python3
-"""Prepare collection for SLURM job array."""
-from pathlib import Path
-import typer
-from barnacle.pipeline.coordinator import prepare_manifest_list
+Validates manifest URLs from a CSV file and writes valid URLs to a plain text file (one per line).
 
-app = typer.Typer()
-
-@app.command()
-def main(
-    collection_or_manifest: str,
-    manifest_list: Path = typer.Option(...),
-    output_dir: Path = typer.Option(...),
-):
-    """Generate manifest list for SLURM job array."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    tasks = prepare_manifest_list(collection_or_manifest, output_dir)
-
-    with manifest_list.open("w") as f:
-        for task in tasks:
-            f.write(f"{task.manifest_id}\t{task.output_path}\n")
-
-    print(f"✅ Prepared {len(tasks)} manifests")
-    print(f"   List: {manifest_list}")
-    print(f"   Output: {output_dir}")
-
-if __name__ == "__main__":
-    app()
+```bash
+python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
 ```
+
+The script:
+- Reads manifest URLs from CSV (requires `manifest_url` column)
+- Validates each URL is reachable
+- Expands any IIIF Collections into their sub-manifests
+- Logs unreachable URLs to stderr
+- Writes valid manifest URLs to output file
+
+The manifest list is portable and can be version-controlled since output paths are computed at runtime.
 
 #### 3.2 SLURM Job Script
 
@@ -416,41 +400,40 @@ fi
 #!/bin/bash
 set -euo pipefail
 
-COLLECTION_URL="$1"
+MANIFEST_LIST="$1"
 RUN_NAME="${2:-$(date +%Y%m%d_%H%M%S)}"
 RUN_DIR="/scratch/$USER/barnacle/runs/$RUN_NAME"
+OUTPUT_DIR="$RUN_DIR/ocr"
 
-mkdir -p "$RUN_DIR/ocr" "$RUN_DIR/logs"
+mkdir -p "$OUTPUT_DIR" "$RUN_DIR/logs"
 
 echo "Barnacle Collection Processing"
-echo "Collection: $COLLECTION_URL"
+echo "Manifest List: $MANIFEST_LIST"
 echo "Run: $RUN_DIR"
 
-# Prepare manifest list
-python scripts/prepare_collection.py \
-  "$COLLECTION_URL" \
-  --manifest-list "$RUN_DIR/manifests.txt" \
-  --output-dir "$RUN_DIR/ocr"
-
-N=$(wc -l < "$RUN_DIR/manifests.txt")
-echo "✅ $N manifests prepared"
+N=$(wc -l < "$MANIFEST_LIST")
+echo "$N manifests to process"
 
 # Submit job array
 JOB_ID=$(sbatch \
   --array=1-$N \
   --output="$RUN_DIR/logs/barnacle-%A_%a.out" \
   --error="$RUN_DIR/logs/barnacle-%A_%a.err" \
-  --export=MANIFEST_LIST="$RUN_DIR/manifests.txt" \
+  --export=MANIFEST_LIST="$MANIFEST_LIST",OUTPUT_DIR="$OUTPUT_DIR" \
   slurm/process_manifest.sh | awk '{print $4}')
 
-echo "✅ Submitted job: $JOB_ID"
+echo "Submitted job: $JOB_ID"
 echo "   Monitor: squeue -j $JOB_ID"
 echo "   Logs: $RUN_DIR/logs/"
 ```
 
 **Usage**:
 ```bash
-./slurm/run_collection.sh https://dpul.princeton.edu/lapidus lapidus_full
+# First, generate the manifest list (run once when source CSV changes)
+python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
+
+# Then run the collection
+./slurm/run_collection.sh manifests.txt lapidus_full
 ```
 
 #### Deliverables
