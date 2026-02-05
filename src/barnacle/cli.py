@@ -21,7 +21,7 @@ import httpx
 import typer
 import logging
 
-from barnacle.ocr import KrakenBackend
+from barnacle.ocr import KrakenBackend, DEFAULT_MODEL
 from barnacle.iiif.v2 import (
     load_manifest,
     load_json,
@@ -38,6 +38,7 @@ from barnacle.pipeline.output import (
     page_key,
     load_processed_keys,
     append_record,
+    manifest_output_path,
 )
 from barnacle.pipeline.worker import process_manifest
 
@@ -181,6 +182,128 @@ def validate_all_cmd(
                 typer.echo(f"✅ {manifest_url}: Validation passed")
 
 
+@app.command("run")
+def run_cmd(
+    manifest_list: Path = typer.Argument(..., help="File containing manifest URLs (one per line)"),
+    output_dir: Path = typer.Argument(..., help="Output directory for JSONL files"),
+    max_pages: int | None = typer.Option(None, "--max-pages", help="Limit pages per manifest (for testing)"),
+    model: str | None = typer.Option(None, "--model", help="Override default Kraken model"),
+    cache_dir: Path = typer.Option(
+        Path(".barnacle-cache"), "--cache-dir", help="Cache directory for downloaded images"
+    ),
+    log_level: str = typer.Option("INFO", "--log-level", help="Log level"),
+) -> None:
+    """
+    Run OCR on a list of manifests.
+
+    Reads manifest URLs from MANIFEST_LIST (one per line) and writes
+    JSONL output files to OUTPUT_DIR (one file per manifest, SHA1-named).
+
+    Example:
+        barnacle run manifests.txt output/ --max-pages 5
+    """
+    global LOGGER
+    LOGGER = setup_logging(log_level)
+
+    # Expand paths
+    manifest_list = manifest_list.expanduser()
+    output_dir = output_dir.expanduser()
+    cache_dir = cache_dir.expanduser()
+
+    # Validate manifest list file exists
+    if not manifest_list.exists():
+        typer.echo(f"Error: Manifest list file not found: {manifest_list}", err=True)
+        raise typer.Exit(code=1)
+
+    # Read manifest URLs from file
+    manifest_urls = []
+    with manifest_list.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                manifest_urls.append(line)
+
+    if not manifest_urls:
+        typer.echo("Error: No manifest URLs found in file", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Found {len(manifest_urls)} manifest(s) to process")
+
+    # Create output directory
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Use default model if not specified
+    effective_model = model if model else DEFAULT_MODEL
+    typer.echo(f"Using model: {effective_model}")
+
+    # Process each manifest
+    manifest_count = 0
+    total_pages = 0
+    skipped_manifests = 0
+    failed_manifests = []
+
+    for manifest_url in manifest_urls:
+        manifest_count += 1
+
+        # Generate output path using SHA1
+        output_path = manifest_output_path(manifest_url, output_dir)
+
+        # Skip if output file already exists (resume behavior)
+        if output_path.exists():
+            typer.echo(f"⏭️  [{manifest_count}/{len(manifest_urls)}] Skipping (already exists): {output_path.name}")
+            skipped_manifests += 1
+            continue
+
+        typer.echo(f"\n📄 [{manifest_count}/{len(manifest_urls)}] Processing: {manifest_url}")
+
+        # Process manifest
+        result = process_manifest(
+            manifest_id=manifest_url,
+            output_path=output_path,
+            model=effective_model,
+            cache_dir=cache_dir,
+            max_pages=max_pages,
+            resume=True,
+        )
+
+        # Report results
+        if result.validation_issues:
+            typer.echo(
+                f"⚠️  Validation issues ({len(result.validation_issues)}), but processing continued:",
+                err=True
+            )
+            for issue in result.validation_issues[:5]:
+                typer.echo(f"  - {issue.path}: {issue.message}", err=True)
+            if len(result.validation_issues) > 5:
+                typer.echo(f"  ... and {len(result.validation_issues) - 5} more", err=True)
+
+        if result.success:
+            total_pages += result.pages_processed
+            typer.echo(
+                f"✅ Completed: {result.pages_processed} pages processed, "
+                f"{result.pages_skipped} skipped, "
+                f"{result.pages_failed} failed "
+                f"({result.elapsed_seconds:.1f}s)"
+            )
+            typer.echo(f"   Output: {output_path}")
+        else:
+            failed_manifests.append(manifest_url)
+            typer.echo(f"❌ Failed to process manifest", err=True)
+
+    # Final summary
+    typer.echo(f"\n{'='*60}")
+    typer.echo(f"📊 Summary:")
+    typer.echo(f"  Manifests processed: {manifest_count - skipped_manifests - len(failed_manifests)}")
+    typer.echo(f"  Manifests skipped (already exist): {skipped_manifests}")
+    typer.echo(f"  Manifests failed: {len(failed_manifests)}")
+    typer.echo(f"  Total pages: {total_pages}")
+    typer.echo(f"  Output directory: {output_dir}")
+
+    if failed_manifests:
+        typer.echo(f"\n❌ Failed manifests ({len(failed_manifests)}):")
+        for manifest_url in failed_manifests:
+            typer.echo(f"  - {manifest_url}")
+        raise typer.Exit(code=1)
 
 
 

@@ -10,6 +10,9 @@ from typing import Protocol
 
 import typer
 
+# McCATMuS model - default for Kraken OCR
+DEFAULT_MODEL = "10.5281/zenodo.14585602"
+
 
 class OCRBackend(Protocol):
     """Minimal interface for an OCR backend."""
