@@ -22,4 +22,6 @@ coverage.xml
 # OS/editor
 .DS_Store
 
+# Barnacle runtime files
 .barnacle-cache/
+manifest.txt
