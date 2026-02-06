@@ -243,7 +243,7 @@ docker run --rm \
   -v $(pwd)/docker_test/cache:/cache \
   -v $(pwd)/docker_test/output:/output \
   barnacle:latest ocr <MANIFEST_URL> \
-    --model /models/McCATMuS_nfd_nofix_V1.mlmodel \
+    --model /models/catmus-print-fondue-large.mlmodel \
     --cache-dir /cache \
     --out /output/test.jsonl \
     --max-pages 2
@@ -357,7 +357,7 @@ docker pull pulibrary/barnacle:latest
      --bind /scratch/$USER/barnacle/cache:/cache \
      --bind /scratch/$USER/barnacle/runs:/output \
      barnacle.sif barnacle ocr <MANIFEST_URL> \
-       --model /models/McCATMuS_nfd_nofix_V1.mlmodel \
+       --model /models/catmus-print-fondue-large.mlmodel \
        --cache-dir /cache \
        --out /output/test.jsonl \
        --max-pages 5

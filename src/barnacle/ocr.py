@@ -10,8 +10,8 @@ from typing import Protocol
 
 import typer
 
-# McCATMuS model - default for Kraken OCR
-DEFAULT_MODEL = "10.5281/zenodo.14585602"
+# CATMuS Print Fondue Large model - default for Kraken OCR
+DEFAULT_MODEL = "10.5281/zenodo.10592716"
 
 
 class OCRBackend(Protocol):

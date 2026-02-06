@@ -47,7 +47,7 @@ LOG_DIR="$RUN_DIR/logs"
 
 # Container and model paths (customize for your environment)
 CONTAINER="${CONTAINER:-/project/barnacle/barnacle.sif}"
-MODEL_PATH="${MODEL_PATH:-/project/barnacle/models/McCATMuS_nfd_nofix_V1.mlmodel}"
+MODEL_PATH="${MODEL_PATH:-/project/barnacle/models/catmus-print-fondue-large.mlmodel}"
 CACHE_DIR="${CACHE_DIR:-$BASE_DIR/cache}"
 
 # SLURM settings (customize for your cluster)

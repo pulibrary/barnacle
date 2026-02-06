@@ -21,7 +21,7 @@ resume quickly after interruptions or context loss.
 
 - **Kraken model**
   - Using local model:
-    - `models/McCATMuS_nfd_nofix_V1.mlmodel`
+    - `models/catmus-print-fondue-large.mlmodel`
   - DOI-based auto-download was unreliable (rate limits); local model preferred
 
 - **Caching**
@@ -63,7 +63,7 @@ src/barnacle/
   cli.py              # Main CLI
   ocr.py              # OCR backend abstraction
 models/
-  McCATMuS_nfd_nofix_V1.mlmodel
+  catmus-print-fondue-large.mlmodel
 scripts/
   ocr_resume_status.py
 docs/

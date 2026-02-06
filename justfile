@@ -10,7 +10,7 @@ set export
 # Defaults (override like: MODEL=... OUT=... LOG_LEVEL=DEBUG just ocr <url> 5)
 # ----------------------------
 
-MODEL := "models/McCATMuS_nfd_nofix_V1.mlmodel"
+MODEL := "models/catmus-print-fondue-large.mlmodel"
 OUT := "out.jsonl"
 LOG_LEVEL := "INFO"
 

@@ -40,7 +40,7 @@ SLURM Job Array (sbatch --array=1-N)
    - Example path: `/project/barnacle/barnacle.sif`
 
 2. **Kraken model** downloaded and accessible
-   - Example path: `/project/barnacle/models/McCATMuS_nfd_nofix_V1.mlmodel`
+   - Example path: `/project/barnacle/models/catmus-print-fondue-large.mlmodel`
    - See README for model download instructions
 
 3. **Storage paths** configured
@@ -63,7 +63,7 @@ python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
 
 # Set environment variables (or edit script defaults)
 export CONTAINER=/project/barnacle/barnacle.sif
-export MODEL_PATH=/project/barnacle/models/McCATMuS_nfd_nofix_V1.mlmodel
+export MODEL_PATH=/project/barnacle/models/catmus-print-fondue-large.mlmodel
 export CACHE_DIR=/scratch/$USER/barnacle/cache
 
 # Run collection
@@ -305,7 +305,7 @@ sbatch --dependency=afterok:$JOB1 ...
 /project/barnacle/
 ├── barnacle.sif                       # Container (read-only)
 ├── models/
-│   └── McCATMuS_nfd_nofix_V1.mlmodel # Model (read-only)
+│   └── catmus-print-fondue-large.mlmodel # Model (read-only)
 
 /scratch/$USER/barnacle/
 ├── cache/

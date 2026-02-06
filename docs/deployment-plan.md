@@ -714,7 +714,7 @@ Before proceeding with implementation, we need answers to:
 
 ### Kraken OCR Engine
 
-- **Model**: McCATMuS_nfd_nofix_V1 (historical typography)
+- **Model**: catmus-print-fondue-large (historical typography)
 - **Input**: IIIF Image API URLs
 - **Output**: Plain text per page
 - **Performance**: ~1 min/page (first run), <10sec cached

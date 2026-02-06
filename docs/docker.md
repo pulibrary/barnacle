@@ -88,7 +88,7 @@ docker run --rm \
   -v $(pwd)/output:/output \
   barnacle:latest ocr \
     https://figgy.princeton.edu/concern/scanned_resources/22a5dd98-7a15-4ed9-bdbc-16bb4ae785b6/manifest \
-    --model /models/McCATMuS_nfd_nofix_V1.mlmodel \
+    --model /models/catmus-print-fondue-large.mlmodel \
     --cache-dir /cache \
     --out /output/test.jsonl \
     --max-pages 5

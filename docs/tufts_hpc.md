@@ -96,7 +96,7 @@ The `run` command creates SHA1-named output files for each manifest and automati
 ```bash
 barnacle ocr \
   https://figgy.princeton.edu/concern/scanned_resources/<ID>/manifest \
-  --model /path/to/models/McCATMuS_nfd_nofix_V1.mlmodel \
+  --model /path/to/models/catmus-print-fondue-large.mlmodel \
   --cache-dir /scratch/$USER/barnacle/cache \
   --out /scratch/$USER/barnacle/output/results.jsonl \
   --max-pages 5
@@ -156,7 +156,7 @@ singularity exec \
   --bind /path/to/output:/output \
   barnacle.sif barnacle ocr \
     https://figgy.princeton.edu/concern/scanned_resources/<ID>/manifest \
-    --model /models/McCATMuS_nfd_nofix_V1.mlmodel \
+    --model /models/catmus-print-fondue-large.mlmodel \
     --cache-dir /cache \
     --out /output/test.jsonl \
     --max-pages 5
