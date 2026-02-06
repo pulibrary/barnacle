@@ -87,9 +87,22 @@ For parallel processing with more control, continue with `batch_process.sh` belo
 
 ### 1. Prepare Manifest List
 
-Generate a manifest list from a CSV file:
+The canonical manifest lists are stored in `data/manifests/`:
+
 ```bash
-python scripts/prepare_manifests.py data/lapidus_lar.csv -o manifests.txt
+data/manifests/
+├── all.txt           # Complete list (2,853 URLs)
+├── tranche-01.txt    # URLs 1-500 (HPC)
+├── tranche-02.txt    # URLs 501-1000 (HPC)
+├── tranche-03.txt    # URLs 1001-1500 (HPC)
+├── tranche-04.txt    # URLs 1501-2000 (HPC)
+├── tranche-05.txt    # URLs 2001-2500 (HPC)
+└── tranche-06.txt    # URLs 2501-2853 (VM)
+```
+
+To regenerate the full list from source CSV:
+```bash
+python scripts/prepare_manifests.py data/lapidus_lar.csv -o data/manifests/all.txt
 ```
 
 This validates each URL and writes valid manifest URLs to the output file (one per line).
@@ -97,8 +110,15 @@ This validates each URL and writes valid manifest URLs to the output file (one p
 ### 2. Run Batch Processing
 
 ```bash
+# Process a single tranche
 ./scripts/batch_process.sh \
-    --manifest-list manifests.txt \
+    --manifest-list data/manifests/tranche-01.txt \
+    --output-dir ./output \
+    --model 10.5281/zenodo.14585602
+
+# Or process the full list
+./scripts/batch_process.sh \
+    --manifest-list data/manifests/all.txt \
     --output-dir ./output \
     --model 10.5281/zenodo.14585602
 ```

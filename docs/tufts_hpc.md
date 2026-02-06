@@ -20,7 +20,10 @@ container-mod pipe -p docker://cwulfman01/barnacle:latest
 module load use.own
 module load barnacle/latest
 
-# Run OCR
+# Run OCR on multiple manifests (batch mode)
+barnacle run manifests.txt /scratch/$USER/barnacle/output
+
+# Or run OCR on a single manifest
 barnacle ocr https://example.com/manifest \
   --model /path/to/model.mlmodel \
   --out /scratch/$USER/output.jsonl
@@ -71,7 +74,24 @@ barnacle --help
 
 #### Step 4: Run OCR
 
-Once the module is loaded, you can use barnacle directly:
+Once the module is loaded, you can use barnacle directly.
+
+**Batch processing (recommended):**
+
+```bash
+# Create a file with manifest URLs (one per line)
+cat > manifests.txt << EOF
+https://figgy.princeton.edu/concern/scanned_resources/abc123/manifest
+https://figgy.princeton.edu/concern/scanned_resources/def456/manifest
+EOF
+
+# Process all manifests (uses default model, auto-resumes)
+barnacle run manifests.txt /scratch/$USER/barnacle/output --max-pages 5
+```
+
+The `run` command creates SHA1-named output files for each manifest and automatically skips already-processed manifests on restart.
+
+**Single manifest:**
 
 ```bash
 barnacle ocr \
