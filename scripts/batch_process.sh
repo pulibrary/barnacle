@@ -9,21 +9,21 @@
 #   ./scripts/batch_process.sh \
 #       --manifest-list manifests.txt \
 #       --output-dir ./output \
-#       --model 10.5281/zenodo.14585602 \
+#       --model 10.5281/zenodo.10592716 \
 #       [--jobs 8] \
 #       [--resume] \
 #       [--tmux]
 #
 # Examples:
 #   # Basic run with default parallelism
-#   ./scripts/batch_process.sh --manifest-list manifests.txt --output-dir ./output --model 10.5281/zenodo.14585602
+#   ./scripts/batch_process.sh --manifest-list manifests.txt --output-dir ./output --model 10.5281/zenodo.10592716
 #
 #   # Resume a previous interrupted run
-#   ./scripts/batch_process.sh --manifest-list manifests.txt --output-dir ./output --model 10.5281/zenodo.14585602 \
+#   ./scripts/batch_process.sh --manifest-list manifests.txt --output-dir ./output --model 10.5281/zenodo.10592716 \
 #       --resume --joblog batch_20260122_123456.log
 #
 #   # Run in tmux session for long jobs
-#   ./scripts/batch_process.sh --manifest-list manifests.txt --output-dir ./output --model 10.5281/zenodo.14585602 --tmux
+#   ./scripts/batch_process.sh --manifest-list manifests.txt --output-dir ./output --model 10.5281/zenodo.10592716 --tmux
 
 set -euo pipefail
 
@@ -68,20 +68,20 @@ Examples:
   ./scripts/batch_process.sh \
       --manifest-list manifests.txt \
       --output-dir ./output \
-      --model 10.5281/zenodo.14585602
+      --model 10.5281/zenodo.10592716
 
   # Run with 4 workers
   ./scripts/batch_process.sh \
       --manifest-list manifests.txt \
       --output-dir ./output \
-      --model 10.5281/zenodo.14585602 \
+      --model 10.5281/zenodo.10592716 \
       --jobs 4
 
   # Resume interrupted batch
   ./scripts/batch_process.sh \
       --manifest-list manifests.txt \
       --output-dir ./output \
-      --model 10.5281/zenodo.14585602 \
+      --model 10.5281/zenodo.10592716 \
       --resume \
       --joblog batch_20260122_123456.log
 
@@ -89,7 +89,7 @@ Examples:
   ./scripts/batch_process.sh \
       --manifest-list manifests.txt \
       --output-dir ./output \
-      --model 10.5281/zenodo.14585602 \
+      --model 10.5281/zenodo.10592716 \
       --tmux
 
 Manifest List Format:
@@ -217,10 +217,17 @@ fi
 # Ensure output directory exists
 mkdir -p "$OUTPUT_DIR"
 
-# Construct the barnacle command to run for each manifest
-# {1} = manifest_url (one per line)
-# Output path is computed using SHA1 hash of the manifest URL
-BARNACLE_CMD="barnacle ocr {1} --model '$MODEL' --out '$OUTPUT_DIR/\$(echo -n {1} | sha1sum | cut -d\" \" -f1).jsonl' --resume"
+# Define a function for parallel to call
+# This avoids complex quoting issues with command substitution
+process_manifest() {
+    local url="$1"
+    local model="$2"
+    local output_dir="$3"
+    local hash
+    hash=$(echo -n "$url" | shasum -a 1 | cut -d' ' -f1)
+    barnacle ocr "$url" --model "$model" --out "$output_dir/$hash.jsonl" --resume
+}
+export -f process_manifest
 
 # Build parallel options
 PARALLEL_OPTS=(
@@ -281,12 +288,24 @@ if [[ "$USE_TMUX" == true ]]; then
 #!/bin/bash
 set -euo pipefail
 cd "$(pwd)"
+
+# Define the processing function (must be in this shell for parallel to use it)
+process_manifest() {
+    local url="\$1"
+    local model="\$2"
+    local output_dir="\$3"
+    local hash
+    hash=\$(echo -n "\$url" | shasum -a 1 | cut -d' ' -f1)
+    barnacle ocr "\$url" --model "\$model" --out "\$output_dir/\$hash.jsonl" --resume
+}
+export -f process_manifest
+
 echo "Starting batch processing in tmux session..."
 echo "Manifest count: $MANIFEST_COUNT"
 echo "Output dir:     $OUTPUT_DIR"
 echo "Parallel jobs:  $JOBS"
 echo ""
-cat '$MANIFEST_LIST' | parallel ${PARALLEL_OPTS[@]} '$BARNACLE_CMD'
+cat '$MANIFEST_LIST' | parallel ${PARALLEL_OPTS[@]} process_manifest {1} '$MODEL' '$OUTPUT_DIR'
 EXIT_CODE=\$?
 echo ""
 echo "=========================================="
@@ -325,7 +344,7 @@ else
 
     # Run parallel
     set +e  # Don't exit on error so we can report status
-    cat "$MANIFEST_LIST" | parallel "${PARALLEL_OPTS[@]}" "$BARNACLE_CMD"
+    cat "$MANIFEST_LIST" | parallel "${PARALLEL_OPTS[@]}" process_manifest {1} "$MODEL" "$OUTPUT_DIR"
     EXIT_CODE=$?
     set -e
 
