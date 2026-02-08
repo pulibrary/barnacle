@@ -36,6 +36,7 @@ JOBS=$((JOBS > 0 ? JOBS : 1))  # Ensure at least 1 job
 RESUME=false
 USE_TMUX=false
 JOBLOG="batch_$(date +%Y%m%d_%H%M%S).log"
+LOG_LEVEL="INFO"
 MANIFEST_LIST=""
 OUTPUT_DIR=""
 MODEL=""
@@ -59,6 +60,7 @@ Required Arguments:
 Options:
   --jobs <N>               Number of parallel workers (default: nproc/2)
   --joblog <FILE>          Path to job log file (default: batch_YYYYMMDD_HHMMSS.log)
+  --log-level <LEVEL>      Log level: DEBUG, INFO, WARNING, ERROR (default: INFO)
   --resume                 Resume from previous joblog (use with --joblog)
   --tmux                   Start processing in a new tmux session
   -h, --help               Show this help message
@@ -126,6 +128,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --joblog)
             JOBLOG="$2"
+            shift 2
+            ;;
+        --log-level)
+            LOG_LEVEL="$2"
             shift 2
             ;;
         --resume)
@@ -223,9 +229,10 @@ process_manifest() {
     local url="$1"
     local model="$2"
     local output_dir="$3"
+    local log_level="$4"
     local hash
     hash=$(echo -n "$url" | shasum -a 1 | cut -d' ' -f1)
-    barnacle ocr "$url" --model "$model" --out "$output_dir/$hash.jsonl" --resume
+    barnacle ocr "$url" --model "$model" --out "$output_dir/$hash.jsonl" --resume --log-level "$log_level"
 }
 export -f process_manifest
 
@@ -259,6 +266,7 @@ echo "Output Dir:     $OUTPUT_DIR"
 echo "Model:          $MODEL"
 echo "Parallel Jobs:  $JOBS"
 echo "Job Log:        $JOBLOG"
+echo "Log Level:      $LOG_LEVEL"
 echo "Resume Mode:    $RESUME"
 echo "=========================================="
 
@@ -294,9 +302,10 @@ process_manifest() {
     local url="\$1"
     local model="\$2"
     local output_dir="\$3"
+    local log_level="\$4"
     local hash
     hash=\$(echo -n "\$url" | shasum -a 1 | cut -d' ' -f1)
-    barnacle ocr "\$url" --model "\$model" --out "\$output_dir/\$hash.jsonl" --resume
+    barnacle ocr "\$url" --model "\$model" --out "\$output_dir/\$hash.jsonl" --resume --log-level "\$log_level"
 }
 export -f process_manifest
 
@@ -305,7 +314,7 @@ echo "Manifest count: $MANIFEST_COUNT"
 echo "Output dir:     $OUTPUT_DIR"
 echo "Parallel jobs:  $JOBS"
 echo ""
-cat '$MANIFEST_LIST' | parallel ${PARALLEL_OPTS[@]} process_manifest {1} '$MODEL' '$OUTPUT_DIR'
+cat '$MANIFEST_LIST' | parallel ${PARALLEL_OPTS[@]} process_manifest {1} '$MODEL' '$OUTPUT_DIR' '$LOG_LEVEL'
 EXIT_CODE=\$?
 echo ""
 echo "=========================================="
@@ -344,7 +353,7 @@ else
 
     # Run parallel
     set +e  # Don't exit on error so we can report status
-    cat "$MANIFEST_LIST" | parallel "${PARALLEL_OPTS[@]}" process_manifest {1} "$MODEL" "$OUTPUT_DIR"
+    cat "$MANIFEST_LIST" | parallel "${PARALLEL_OPTS[@]}" process_manifest {1} "$MODEL" "$OUTPUT_DIR" "$LOG_LEVEL"
     EXIT_CODE=$?
     set -e
 
