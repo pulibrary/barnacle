@@ -91,6 +91,13 @@ barnacle run manifests.txt /scratch/$USER/barnacle/output --max-pages 5
 
 The `run` command creates SHA1-named output files for each manifest and automatically skips already-processed manifests on restart.
 
+**Using sbatch:**
+
+```bash
+cd barnacle/scripts
+sbatch tranche_01.sh
+```
+
 **Single manifest:**
 
 ```bash
