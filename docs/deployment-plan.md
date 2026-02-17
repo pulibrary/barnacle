@@ -503,7 +503,7 @@ sbatch --array=$FAILED slurm/process_manifest.sh
   "container_sha256": "abc123...",
   "git_commit": "def456...",
   "model": {
-    "doi": "10.5281/zenodo.14585602",
+    "doi": "10.5281/zenodo.10592716",
     "path": "/models/model.mlmodel"
   },
   "manifest_count": 2778,

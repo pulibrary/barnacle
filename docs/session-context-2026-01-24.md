@@ -484,7 +484,7 @@ docker images | grep barnacle  # Should show barnacle:latest
 - IIIF Presentation 2.1: https://iiif.io/api/presentation/2.1/
 - Kraken docs: https://kraken.re/
 - Tufts HPC docs: https://tuftsrt.github.io/Container_Training.github.io/
-- McCATMuS model: DOI 10.5281/zenodo.14585602
+- McCATMuS model: DOI 10.5281/zenodo.10592716
 
 ---
 

@@ -43,7 +43,7 @@ Follow the main README installation instructions:
 git clone https://github.com/pulibrary/barnacle.git
 cd barnacle
 pdm install
-pdm run kraken get 10.5281/zenodo.14585602
+pdm run kraken get 10.5281/zenodo.10592716
 ```
 
 ### Optional: tmux for Long Jobs
@@ -114,13 +114,13 @@ This validates each URL and writes valid manifest URLs to the output file (one p
 ./scripts/batch_process.sh \
     --manifest-list data/manifests/tranche-01.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602
+    --model 10.5281/zenodo.10592716
 
 # Or process the full list
 ./scripts/batch_process.sh \
     --manifest-list data/manifests/all.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602
+    --model 10.5281/zenodo.10592716
 ```
 
 This will:
@@ -140,7 +140,7 @@ cd barnacle
 pdm install
 
 # Download the OCR model
-pdm run kraken get 10.5281/zenodo.14585602
+pdm run kraken get 10.5281/zenodo.10592716
 
 # Create output directory
 mkdir -p output
@@ -168,7 +168,7 @@ head -5 manifests.txt > test_manifests.txt
 ./scripts/batch_process.sh \
     --manifest-list test_manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602 \
+    --model 10.5281/zenodo.10592716 \
     --jobs 2
 
 # Verify outputs
@@ -181,7 +181,7 @@ ls -la output/*.jsonl
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602 \
+    --model 10.5281/zenodo.10592716 \
     --jobs 8
 ```
 
@@ -196,7 +196,7 @@ For jobs that may run for hours or days, use one of these approaches to prevent 
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602 \
+    --model 10.5281/zenodo.10592716 \
     --tmux
 
 # Detach from session: Ctrl+B, then D
@@ -214,7 +214,7 @@ tmux new -s barnacle
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602
+    --model 10.5281/zenodo.10592716
 
 # Detach: Ctrl+B, then D
 # Reattach: tmux attach -t barnacle
@@ -230,7 +230,7 @@ screen -S barnacle
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602
+    --model 10.5281/zenodo.10592716
 
 # Detach: Ctrl+A, then D
 # Reattach: screen -r barnacle
@@ -243,7 +243,7 @@ screen -S barnacle
 nohup ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602 \
+    --model 10.5281/zenodo.10592716 \
     > batch_output.log 2>&1 &
 
 # Check progress
@@ -306,7 +306,7 @@ If processing is interrupted (Ctrl+C, system reboot, etc.), resume with:
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602 \
+    --model 10.5281/zenodo.10592716 \
     --resume \
     --joblog batch_20260122_143052.log
 ```
@@ -347,7 +347,7 @@ Reduce parallelism to lower memory pressure:
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602 \
+    --model 10.5281/zenodo.10592716 \
     --jobs 2
 ```
 
@@ -358,7 +358,7 @@ IIIF servers may rate-limit requests. Reduce parallelism:
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602 \
+    --model 10.5281/zenodo.10592716 \
     --jobs 4
 ```
 
@@ -375,7 +375,7 @@ awk -F'\t' '$7 != 0 {print $9}' batch_20260122_143052.log
 ./scripts/batch_process.sh \
     --manifest-list manifests.txt \
     --output-dir ./output \
-    --model 10.5281/zenodo.14585602 \
+    --model 10.5281/zenodo.10592716 \
     --resume \
     --joblog batch_20260122_143052.log
 ```

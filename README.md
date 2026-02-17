@@ -42,7 +42,7 @@ cd barnacle
 pdm install
 
 # Download Kraken model
-pdm run kraken get 10.5281/zenodo.14585602
+pdm run kraken get 10.5281/zenodo.10592716
 ```
 
 ### Basic Usage
@@ -53,7 +53,7 @@ pdm run barnacle validate <MANIFEST_URL>
 
 # Run OCR on a single manifest (local testing)
 pdm run barnacle ocr <MANIFEST_URL> \
-    --model 10.5281/zenodo.14585602 \
+    --model 10.5281/zenodo.10592716 \
     --out output.jsonl \
     --max-pages 10
 
@@ -159,7 +159,7 @@ Barnacle writes **JSONL files** (one record per page) with comprehensive provena
   "page_key": "https://...|canvas_id|model|jpg|!3000,3000|default|full|0",
   "canvas_index": 0,
   "engine": "kraken",
-  "model": {"ref": "10.5281/zenodo.14585602", "resolved": "/path/to/model.mlmodel"},
+  "model": {"ref": "10.5281/zenodo.10592716", "resolved": "/path/to/model.mlmodel"},
   "manifest_url": "https://example.org/manifest",
   "canvas_id": "https://example.org/canvas/1",
   "image_url": "https://iiif.example.org/image1/full/!3000,3000/0/default.jpg",
@@ -236,7 +236,7 @@ cd barnacle
 pdm install
 
 # Install Kraken model
-pdm run kraken get 10.5281/zenodo.14585602
+pdm run kraken get 10.5281/zenodo.10592716
 ```
 
 ### Running Tests

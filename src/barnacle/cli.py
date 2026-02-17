@@ -354,7 +354,7 @@ def ocr_cmd(
     For collections, each manifest is processed separately to the same output file.
 
     Example:
-        barnacle ocr https://example.org/manifest --model 10.5281/zenodo.14585602 --out out.jsonl --max-pages 5
+        barnacle ocr https://example.org/manifest --model 10.5281/zenodo.10592716 --out out.jsonl --max-pages 5
     """
     global LOGGER
     LOGGER = setup_logging(log_level)

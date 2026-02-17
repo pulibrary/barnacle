@@ -60,7 +60,7 @@ If you want to bake the Kraken model into the image:
 ```bash
 # Build with custom Dockerfile that includes model download
 docker build --platform linux/amd64 -t barnacle:latest \
-  --build-arg MODEL_DOI=10.5281/zenodo.14585602 \
+  --build-arg MODEL_DOI=10.5281/zenodo.10592716 \
   .
 ```
 
