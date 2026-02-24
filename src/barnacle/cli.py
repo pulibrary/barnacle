@@ -288,7 +288,8 @@ def run_cmd(
             typer.echo(f"   Output: {output_path}")
         else:
             failed_manifests.append(manifest_url)
-            typer.echo(f"❌ Failed to process manifest", err=True)
+            typer.echo(f"❌ Failed to process manifest: {manifest_url}", err=True)
+            typer.echo("  (Check log output above for error details)", err=True)
 
     # Final summary
     typer.echo(f"\n{'='*60}")
@@ -411,7 +412,8 @@ def ocr_cmd(
             )
         else:
             failed_manifests.append(manifest_id)
-            typer.echo(f"❌ Failed to process manifest", err=True)
+            typer.echo(f"❌ Failed to process manifest: {manifest_id}", err=True)
+            typer.echo("  (Check log output above for error details)", err=True)
 
     # Final summary
     typer.echo(f"\n{'='*60}")

@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+import logging
 import time
 from datetime import datetime, timezone
 
@@ -19,6 +20,8 @@ from barnacle.iiif.v2 import load_manifest, validate_manifest, ValidationIssue
 from barnacle.ocr import KrakenBackend
 
 from .output import page_key, load_processed_keys, append_record
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_IIIF_SIZE = "!3000,3000"
@@ -209,7 +212,8 @@ def process_manifest(
                 try:
                     img_bytes = fetch_bytes(image_url)
                     img_path.write_bytes(img_bytes)
-                except httpx.HTTPError:
+                except httpx.HTTPError as e:
+                    logger.warning("Failed to fetch image %s: %s", image_url, e)
                     pages_failed += 1
                     continue
 
@@ -218,7 +222,8 @@ def process_manifest(
             try:
                 text_out = backend.ocr_image(img_path, model=resolved_model)
                 elapsed_ms = int((time.perf_counter() - t0) * 1000)
-            except Exception:
+            except Exception as e:
+                logger.warning("OCR failed for %s: %s", img_path.name, e, exc_info=True)
                 pages_failed += 1
                 continue
 
@@ -255,6 +260,7 @@ def process_manifest(
         )
 
     except Exception as e:
+        logger.exception("Unhandled error processing manifest %s: %s", manifest_id, e)
         elapsed = time.perf_counter() - start_time
         return ProcessingResult(
             manifest_id=manifest_id,
