@@ -192,6 +192,11 @@ def run_cmd(
         Path(".barnacle-cache"), "--cache-dir", help="Cache directory for downloaded images"
     ),
     log_level: str = typer.Option("INFO", "--log-level", help="Log level"),
+    clear_cache_after: bool = typer.Option(
+        False,
+        "--clear-cache-after/--keep-cache",
+        help="Delete downloaded images after each manifest is successfully processed",
+    ),
 ) -> None:
     """
     Run OCR on a list of manifests.
@@ -264,6 +269,7 @@ def run_cmd(
             cache_dir=cache_dir,
             max_pages=max_pages,
             resume=True,
+            clear_cache_after=clear_cache_after,
         )
 
         # Report results
@@ -347,6 +353,11 @@ def ocr_cmd(
         True, "--model-auto-install/--no-model-auto-install",
         help="If model looks like a DOI, run `kraken get` first"
     ),
+    clear_cache_after: bool = typer.Option(
+        False,
+        "--clear-cache-after/--keep-cache",
+        help="Delete downloaded images after each manifest is successfully processed",
+    ),
 ) -> None:
     """
     Run Kraken OCR over a IIIF v2 manifest (or collection of manifests) and write JSONL output.
@@ -389,6 +400,7 @@ def ocr_cmd(
             source_metadata_id=source_metadata_id,
             ark=ark,
             model_auto_install=model_auto_install,
+            clear_cache_after=clear_cache_after,
         )
 
         # Report results

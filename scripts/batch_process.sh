@@ -42,6 +42,7 @@ OUTPUT_DIR=""
 MODEL=""
 CACHE_DIR=""          # optional: override default .barnacle-cache
 SIZE=""               # optional: IIIF image size (e.g. !2000,2000)
+CLEAR_CACHE=false
 
 # =============================================================================
 # Help
@@ -68,6 +69,7 @@ Options:
   --size <SIZE>            IIIF image size parameter (default: !3000,3000)
                            Smaller values (e.g. !2000,2000) are faster but
                            may reduce OCR quality on fine print
+  --clear-cache-after      Delete cached images after each manifest (saves disk)
   --resume                 Resume from previous joblog (use with --joblog)
   --tmux                   Start processing in a new tmux session
   -h, --help               Show this help message
@@ -148,6 +150,10 @@ while [[ $# -gt 0 ]]; do
         --size)
             SIZE="$2"
             shift 2
+            ;;
+        --clear-cache-after)
+            CLEAR_CACHE=true
+            shift
             ;;
         --resume)
             RESUME=true
@@ -253,11 +259,12 @@ process_manifest() {
 
     [[ -n "$CACHE_DIR" ]] && cmd+=(--cache-dir "$CACHE_DIR")
     [[ -n "$SIZE" ]]      && cmd+=(--size "$SIZE")
+    [[ "$CLEAR_CACHE" == "true" ]] && cmd+=(--clear-cache-after)
 
     "${cmd[@]}"
 }
 export -f process_manifest
-export MODEL OUTPUT_DIR LOG_LEVEL CACHE_DIR SIZE
+export MODEL OUTPUT_DIR LOG_LEVEL CACHE_DIR SIZE CLEAR_CACHE
 
 # Build parallel options
 PARALLEL_OPTS=(
@@ -328,7 +335,8 @@ OUTPUT_DIR='$OUTPUT_DIR'
 LOG_LEVEL='$LOG_LEVEL'
 CACHE_DIR='$CACHE_DIR'
 SIZE='$SIZE'
-export MODEL OUTPUT_DIR LOG_LEVEL CACHE_DIR SIZE
+CLEAR_CACHE='$CLEAR_CACHE'
+export MODEL OUTPUT_DIR LOG_LEVEL CACHE_DIR SIZE CLEAR_CACHE
 
 process_manifest() {
     local url="\$1"
@@ -343,6 +351,7 @@ process_manifest() {
 
     [[ -n "\$CACHE_DIR" ]] && cmd+=(--cache-dir "\$CACHE_DIR")
     [[ -n "\$SIZE" ]]      && cmd+=(--size "\$SIZE")
+    [[ "\$CLEAR_CACHE" == "true" ]] && cmd+=(--clear-cache-after)
 
     "\${cmd[@]}"
 }

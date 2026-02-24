@@ -91,6 +91,7 @@ def process_manifest(
     rotation: str = DEFAULT_IIIF_ROTATION,
     source_metadata_id: str | None = None,
     ark: str | None = None,
+    clear_cache_after: bool = False,
 ) -> ProcessingResult:
     """
     Process single manifest: fetch, validate, OCR pages, write JSONL.
@@ -119,6 +120,7 @@ def process_manifest(
         rotation: IIIF rotation parameter
         source_metadata_id: Optional provenance field
         ark: Optional provenance field
+        clear_cache_after: If True, delete cached images after successful processing
 
     Returns:
         ProcessingResult with statistics
@@ -167,6 +169,7 @@ def process_manifest(
             )
 
         # Process each canvas/page
+        img_paths_used: list[Path] = []
         for c_i, canvas in enumerate(manifest.canvases()):
             if max_pages is not None and pages_processed >= max_pages:
                 break
@@ -207,6 +210,7 @@ def process_manifest(
 
             cache_key = hashlib.sha1(image_url.encode("utf-8")).hexdigest()
             img_path = img_cache / f"{cache_key}.{fmt}"
+            img_paths_used.append(img_path)
 
             if not img_path.exists():
                 try:
@@ -247,6 +251,11 @@ def process_manifest(
             if resume:
                 processed_keys.add(k)
             pages_processed += 1
+
+        if clear_cache_after:
+            for p in img_paths_used:
+                p.unlink(missing_ok=True)
+            logger.debug("Deleted %d cached images for %s", len(img_paths_used), manifest_id)
 
         elapsed = time.perf_counter() - start_time
         return ProcessingResult(
