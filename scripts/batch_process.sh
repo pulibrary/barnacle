@@ -40,6 +40,8 @@ LOG_LEVEL="INFO"
 MANIFEST_LIST=""
 OUTPUT_DIR=""
 MODEL=""
+CACHE_DIR=""          # optional: override default .barnacle-cache
+SIZE=""               # optional: IIIF image size (e.g. !2000,2000)
 
 # =============================================================================
 # Help
@@ -61,6 +63,11 @@ Options:
   --jobs <N>               Number of parallel workers (default: nproc/2)
   --joblog <FILE>          Path to job log file (default: batch_YYYYMMDD_HHMMSS.log)
   --log-level <LEVEL>      Log level: DEBUG, INFO, WARNING, ERROR (default: INFO)
+  --cache-dir <DIR>        Directory for cached page images
+                           (default: .barnacle-cache next to output dir)
+  --size <SIZE>            IIIF image size parameter (default: !3000,3000)
+                           Smaller values (e.g. !2000,2000) are faster but
+                           may reduce OCR quality on fine print
   --resume                 Resume from previous joblog (use with --joblog)
   --tmux                   Start processing in a new tmux session
   -h, --help               Show this help message
@@ -132,6 +139,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --log-level)
             LOG_LEVEL="$2"
+            shift 2
+            ;;
+        --cache-dir)
+            CACHE_DIR="$2"
+            shift 2
+            ;;
+        --size)
+            SIZE="$2"
             shift 2
             ;;
         --resume)
@@ -227,14 +242,22 @@ mkdir -p "$OUTPUT_DIR"
 # This avoids complex quoting issues with command substitution
 process_manifest() {
     local url="$1"
-    local model="$2"
-    local output_dir="$3"
-    local log_level="$4"
     local hash
-    hash=$(echo -n "$url" | shasum -a 1 | cut -d' ' -f1)
-    barnacle ocr "$url" --model "$model" --out "$output_dir/$hash.jsonl" --resume --log-level "$log_level"
+    hash=$(printf '%s' "$url" | shasum -a 1 | awk '{print $1}')
+
+    local cmd=(barnacle ocr "$url"
+        --model "$MODEL"
+        --out "$OUTPUT_DIR/$hash.jsonl"
+        --resume
+        --log-level "$LOG_LEVEL")
+
+    [[ -n "$CACHE_DIR" ]] && cmd+=(--cache-dir "$CACHE_DIR")
+    [[ -n "$SIZE" ]]      && cmd+=(--size "$SIZE")
+
+    "${cmd[@]}"
 }
 export -f process_manifest
+export MODEL OUTPUT_DIR LOG_LEVEL CACHE_DIR SIZE
 
 # Build parallel options
 PARALLEL_OPTS=(
@@ -268,6 +291,8 @@ echo "Parallel Jobs:  $JOBS"
 echo "Job Log:        $JOBLOG"
 echo "Log Level:      $LOG_LEVEL"
 echo "Resume Mode:    $RESUME"
+[[ -n "$CACHE_DIR" ]] && echo "Cache Dir:      $CACHE_DIR"
+[[ -n "$SIZE" ]]      && echo "Image Size:     $SIZE"
 echo "=========================================="
 
 # =============================================================================
@@ -298,14 +323,28 @@ set -euo pipefail
 cd "$(pwd)"
 
 # Define the processing function (must be in this shell for parallel to use it)
+MODEL='$MODEL'
+OUTPUT_DIR='$OUTPUT_DIR'
+LOG_LEVEL='$LOG_LEVEL'
+CACHE_DIR='$CACHE_DIR'
+SIZE='$SIZE'
+export MODEL OUTPUT_DIR LOG_LEVEL CACHE_DIR SIZE
+
 process_manifest() {
     local url="\$1"
-    local model="\$2"
-    local output_dir="\$3"
-    local log_level="\$4"
     local hash
-    hash=\$(echo -n "\$url" | shasum -a 1 | cut -d' ' -f1)
-    barnacle ocr "\$url" --model "\$model" --out "\$output_dir/\$hash.jsonl" --resume --log-level "\$log_level"
+    hash=\$(printf '%s' "\$url" | shasum -a 1 | awk '{print \$1}')
+
+    local cmd=(barnacle ocr "\$url"
+        --model "\$MODEL"
+        --out "\$OUTPUT_DIR/\$hash.jsonl"
+        --resume
+        --log-level "\$LOG_LEVEL")
+
+    [[ -n "\$CACHE_DIR" ]] && cmd+=(--cache-dir "\$CACHE_DIR")
+    [[ -n "\$SIZE" ]]      && cmd+=(--size "\$SIZE")
+
+    "\${cmd[@]}"
 }
 export -f process_manifest
 
@@ -314,7 +353,7 @@ echo "Manifest count: $MANIFEST_COUNT"
 echo "Output dir:     $OUTPUT_DIR"
 echo "Parallel jobs:  $JOBS"
 echo ""
-cat '$MANIFEST_LIST' | parallel ${PARALLEL_OPTS[@]} process_manifest {1} '$MODEL' '$OUTPUT_DIR' '$LOG_LEVEL'
+cat '$MANIFEST_LIST' | parallel ${PARALLEL_OPTS[@]} process_manifest {1}
 EXIT_CODE=\$?
 echo ""
 echo "=========================================="
@@ -353,7 +392,7 @@ else
 
     # Run parallel
     set +e  # Don't exit on error so we can report status
-    cat "$MANIFEST_LIST" | parallel "${PARALLEL_OPTS[@]}" process_manifest {1} "$MODEL" "$OUTPUT_DIR" "$LOG_LEVEL"
+    cat "$MANIFEST_LIST" | parallel "${PARALLEL_OPTS[@]}" process_manifest {1}
     EXIT_CODE=$?
     set -e
 
