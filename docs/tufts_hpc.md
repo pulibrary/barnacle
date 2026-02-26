@@ -1,33 +1,52 @@
 # Tufts HPC Cluster Guide
 
-This guide covers deploying and running Barnacle on the Tufts HPC cluster using Singularity containers.
+This guide covers deploying and running Barnacle on the Tufts HPC cluster using the `container-mod` module system.
 
 ## Prerequisites
 
 - Access to Tufts HPC cluster
 - Barnacle Docker image available on DockerHub (`cwulfman01/barnacle`)
+- Access to the research storage allocation at `/cluster/tufts/lapidusocr/`
+
+## Storage Layout
+
+> **Note:** `/scratch` is not reliably available on the Tufts cluster. Use the research storage allocation instead.
+
+```
+/cluster/tufts/lapidusocr/
+├── shared/
+│   └── ocr/                   # Output JSONL files (shared across team)
+└── cwulfm01/
+    ├── cache/                  # Image cache (per-user, transient)
+    └── logs/                   # SLURM job logs (per-user)
+```
+
+Create these directories once:
+
+```bash
+mkdir -p /cluster/tufts/lapidusocr/shared/ocr
+mkdir -p /cluster/tufts/lapidusocr/cwulfm01/cache
+mkdir -p /cluster/tufts/lapidusocr/cwulfm01/logs
+```
 
 ## Quick Start
 
 ```bash
-# Load container-mod
-module load container-mod
-
-# Install barnacle as a personal module
-container-mod pipe -p docker://cwulfman01/barnacle:latest
-
-# Load the module
+# Load barnacle module
 module load use.own
 module load barnacle/latest
 
-# Run OCR on multiple manifests (batch mode)
-barnacle run manifests.txt /scratch/$USER/barnacle/output
-
-# Or run OCR on a single manifest
-barnacle ocr https://example.com/manifest \
-  --model /path/to/model.mlmodel \
-  --out /scratch/$USER/output.jsonl
+# Submit a job array (one task per manifest)
+N=$(wc -l < ~/barnacle/data/manifests/tranche-01.txt)
+sbatch --array=1-${N}%50 \
+  --output=/cluster/tufts/lapidusocr/cwulfm01/logs/barnacle-%A_%a.out \
+  --error=/cluster/tufts/lapidusocr/cwulfm01/logs/barnacle-%A_%a.err \
+  --mail-user=cwulfm01@tufts.edu \
+  --export=ALL,MANIFEST_LIST=$HOME/barnacle/data/manifests/tranche-01.txt,OUTPUT_DIR=/cluster/tufts/lapidusocr/shared/ocr,MODEL=$HOME/barnacle/models/catmus-print-fondue-large.mlmodel,CACHE_BASE=/cluster/tufts/lapidusocr/cwulfm01/cache \
+  slurm/process_manifest_module.sh
 ```
+
+> **Important:** The `--export` value must have no spaces between comma-separated entries or SLURM will misparse it.
 
 ## Installation Methods
 
@@ -91,23 +110,22 @@ barnacle run manifests.txt /scratch/$USER/barnacle/output --max-pages 5
 
 The `run` command creates SHA1-named output files for each manifest and automatically skips already-processed manifests on restart.
 
-**Using sbatch:**
+**Using sbatch (job array):**
 
-```bash
-cd barnacle/scripts
-sbatch tranche_01.sh
-```
+See the Quick Start section above. Use `slurm/process_manifest_module.sh` for module-based submission.
 
-**Single manifest:**
+**Single manifest (testing only):**
 
 ```bash
 barnacle ocr \
   https://figgy.princeton.edu/concern/scanned_resources/<ID>/manifest \
-  --model /path/to/models/catmus-print-fondue-large.mlmodel \
-  --cache-dir /scratch/$USER/barnacle/cache \
-  --out /scratch/$USER/barnacle/output/results.jsonl \
+  --model ~/barnacle/models/catmus-print-fondue-large.mlmodel \
+  --cache-dir /cluster/tufts/lapidusocr/cwulfm01/cache \
+  --out /cluster/tufts/lapidusocr/shared/ocr/test.jsonl \
   --max-pages 5
 ```
+
+> **Note:** `barnacle ocr` requires `--model` explicitly. Unlike `barnacle run`, it has no default.
 
 #### Updating to a new version
 
@@ -169,15 +187,15 @@ singularity exec \
     --max-pages 5
 ```
 
-## Volume Mounts
+## Volume Mounts (Singularity only)
 
-The container expects three volumes to be mounted:
+If using Singularity directly rather than `container-mod`, the container expects three volumes to be mounted:
 
-| Mount Point | Purpose | Example HPC Path |
+| Mount Point | Purpose | Tufts HPC Path |
 |------------|---------|------------------|
-| `/models` | Kraken model files (read-only) | `/project/barnacle/models` |
-| `/cache` | Downloaded images (read-write) | `/scratch/$USER/barnacle/cache` |
-| `/output` | OCR output JSONL files (read-write) | `/scratch/$USER/barnacle/runs` |
+| `/models` | Kraken model files (read-only) | `~/barnacle/models` |
+| `/cache` | Downloaded images (read-write) | `/cluster/tufts/lapidusocr/$USER/cache` |
+| `/output` | OCR output JSONL files (read-write) | `/cluster/tufts/lapidusocr/shared/ocr` |
 
 ## Administrator Configuration
 
@@ -249,12 +267,33 @@ ls -l /path/to/models/
 singularity exec --bind /path/to/models:/models barnacle.sif ls -l /models/
 ```
 
+## Troubleshooting
+
+### `/scratch` not available
+
+Tufts `/scratch` has known availability issues. Use `/cluster/tufts/lapidusocr/$USER/cache` instead, as shown in the Quick Start above.
+
+### `--model` is required
+
+`barnacle ocr` requires `--model` explicitly — it has no built-in default. Always pass a filesystem path or DOI. The `process_manifest_module.sh` script accepts a `MODEL` environment variable (defaults to the CATMuS Print Fondue Large DOI).
+
+### Spaces in `--export` cause parse errors
+
+SLURM's `--export` option must not contain spaces between entries:
+```bash
+# Wrong (spaces after commas)
+--export=ALL,MANIFEST_LIST=foo.txt, MODEL=/path/to/model
+
+# Correct
+--export=ALL,MANIFEST_LIST=foo.txt,MODEL=/path/to/model
+```
+
 ## Next Steps
 
-Once the Singularity container is working on the HPC cluster, proceed to:
+Once running, proceed to:
 
-1. Set up SLURM job array scripts (`slurm/process_manifest.sh`)
-2. Test parallel processing with a small collection
-3. Scale up to full production workloads
+1. Monitor with `squeue -u $USER` and `sacct`
+2. Check output counts: `ls /cluster/tufts/lapidusocr/shared/ocr/*.jsonl | wc -l`
+3. Resubmit any failed tasks by array task ID
 
-See `docs/slurm.md` for SLURM integration details.
+See `docs/slurm.md` for full SLURM integration details.

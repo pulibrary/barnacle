@@ -35,21 +35,29 @@ SLURM Job Array (sbatch --array=1-N)
 
 ## Prerequisites
 
-1. **Singularity container** built and available on cluster
-   - See `docs/docker.md` for building and converting to Singularity
-   - Example path: `/project/barnacle/barnacle.sif`
+Choose one of two deployment approaches:
 
-2. **Kraken model** downloaded and accessible
-   - Example path: `/project/barnacle/models/catmus-print-fondue-large.mlmodel`
-   - See README for model download instructions
+**Option A: Singularity container** (generic HPC)
+- Container built and available on cluster — see `docs/docker.md`
+- Example path: `/project/barnacle/barnacle.sif`
+- Use `slurm/process_manifest.sh`
 
-3. **Storage paths** configured
-   - Cache directory: `/scratch/$USER/barnacle/cache`
-   - Output directory: `/scratch/$USER/barnacle/runs`
-   - Model directory: `/project/barnacle/models`
+**Option B: Environment module** (Tufts HPC with `container-mod`)
+- Barnacle installed as a personal module via `container-mod pipe`
+- See `docs/tufts_hpc.md` for setup
+- Use `slurm/process_manifest_module.sh`
 
-4. **Python environment** with Barnacle installed (for `prepare_manifests.py`)
-   - Can use same container or local installation
+Both options require:
+
+1. **Kraken model** downloaded and accessible as a filesystem path
+   - Example: `~/barnacle/models/catmus-print-fondue-large.mlmodel`
+
+2. **Storage paths** configured
+   - Cache: per-task subdirectory on fast local storage (not NFS home)
+   - Output: shared or per-user directory on persistent storage
+   - On Tufts: use `/cluster/tufts/<allocation>/` — `/scratch` is not reliably available
+
+3. **Python environment** with Barnacle installed (for `prepare_manifests.py`)
 
 ## Quick Start
 
@@ -75,7 +83,35 @@ This will:
 2. Print monitoring commands
 3. Save run metadata
 
-### Option B: Manual Step-by-Step
+### Option B: Module-based (Tufts HPC)
+
+Use `slurm/process_manifest_module.sh` with `module load barnacle/latest` instead of Singularity:
+
+```bash
+N=$(wc -l < manifests.txt)
+mkdir -p logs/
+
+sbatch --array=1-${N}%50 \
+  --output=logs/barnacle-%A_%a.out \
+  --error=logs/barnacle-%A_%a.err \
+  --export=ALL,MANIFEST_LIST=$PWD/manifests.txt,OUTPUT_DIR=/cluster/tufts/lapidusocr/shared/ocr,MODEL=$HOME/barnacle/models/catmus-print-fondue-large.mlmodel,CACHE_BASE=/cluster/tufts/lapidusocr/$USER/cache \
+  slurm/process_manifest_module.sh
+```
+
+Environment variables for `process_manifest_module.sh`:
+
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `MANIFEST_LIST` | Yes | Path to manifest list | `manifests.txt` |
+| `OUTPUT_DIR` | Yes | Output JSONL directory | `/cluster/tufts/lapidusocr/shared/ocr` |
+| `MODEL` | No | Kraken model path or DOI | `~/barnacle/models/model.mlmodel` |
+| `CACHE_BASE` | No | Base path for per-task image cache | `/cluster/tufts/lapidusocr/$USER/cache` |
+
+> **Note:** Each array task gets its own subdirectory under `CACHE_BASE` (e.g., `CACHE_BASE/42/`) to avoid conflicts between simultaneous tasks. The `--clear-cache-after` flag cleans each task's cache on success.
+
+> **Note:** `barnacle ocr` requires `--model` explicitly. The script defaults to the CATMuS Print Fondue Large DOI if `MODEL` is not set, but on clusters without internet access on compute nodes, always pass a filesystem path.
+
+### Option C: Manual Step-by-Step (Singularity)
 
 For more control, run each step manually:
 
@@ -301,29 +337,38 @@ sbatch --dependency=afterok:$JOB1 ...
 
 ### Recommended Layout
 
+**Generic HPC (Singularity):**
 ```
 /project/barnacle/
-├── barnacle.sif                       # Container (read-only)
-├── models/
-│   └── catmus-print-fondue-large.mlmodel # Model (read-only)
+├── barnacle.sif                          # Container (read-only)
+└── models/
+    └── catmus-print-fondue-large.mlmodel # Model (read-only)
 
 /scratch/$USER/barnacle/
 ├── cache/
-│   └── images/                        # Downloaded images (read-write, shared)
-├── runs/
-│   ├── lapidus_20260122/
-│   │   ├── manifests.txt              # Manifest list
-│   │   ├── run_metadata.txt           # Run info
-│   │   ├── logs/
-│   │   │   ├── barnacle-12345_1.out
-│   │   │   ├── barnacle-12345_2.out
-│   │   │   └── ...
-│   │   └── ocr/
-│   │       ├── abc123def456...jsonl   # Per-manifest outputs
-│   │       ├── 789ghi012jkl...jsonl
-│   │       └── ...
-│   └── some_other_collection/
-│       └── ...
+│   └── <task_id>/                        # Per-task image cache
+└── runs/
+    └── <collection>/
+        ├── logs/
+        └── ocr/
+            └── <sha1>.jsonl
+```
+
+**Tufts HPC (module-based):**
+```
+~/barnacle/
+└── models/
+    └── catmus-print-fondue-large.mlmodel
+
+/cluster/tufts/lapidusocr/
+├── shared/
+│   └── ocr/                              # Output JSONL files (team-accessible)
+└── cwulfm01/
+    ├── cache/
+    │   └── <task_id>/                    # Per-task image cache (transient)
+    └── logs/
+        ├── barnacle-<JOB>_1.out
+        └── ...
 ```
 
 ### Cleanup
@@ -395,9 +440,9 @@ sbatch --array=1-1000 ...
 sbatch --array=1001-2000 ...
 ```
 
-### Cache Sharing
+### Cache Isolation
 
-All workers share the same cache directory, reducing redundant downloads for images that appear in multiple manifests.
+`process_manifest_module.sh` gives each array task its own cache subdirectory (`CACHE_BASE/<task_id>/`) to avoid file conflicts between simultaneous tasks. Images are deleted after each successful task via `--clear-cache-after`.
 
 ### Throughput Estimation
 
