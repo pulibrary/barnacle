@@ -16,6 +16,10 @@
 #   OUTPUT_DIR     - Directory for output JSONL files
 #
 # Optional environment variables:
+#   MODEL          - Kraken model ref: DOI, installed name, or filesystem path
+#                    (default: 10.5281/zenodo.10592716, the CATMuS Print Fondue Large model)
+#                    Pre-install on the login node before submitting:
+#                      barnacle ocr --help  # or: kraken get 10.5281/zenodo.10592716
 #   CACHE_BASE     - Base path for image cache (default: /scratch/$USER/barnacle/cache)
 #
 # Example direct submission:
@@ -23,7 +27,7 @@
 #   sbatch --array=1-${N}%50 \
 #     --output=logs/barnacle-%A_%a.out \
 #     --error=logs/barnacle-%A_%a.err \
-#     --export=ALL,MANIFEST_LIST=$PWD/manifests.txt,OUTPUT_DIR=$PWD/output \
+#     --export=ALL,MANIFEST_LIST=$PWD/manifests.txt,OUTPUT_DIR=$PWD/output,MODEL=10.5281/zenodo.10592716 \
 #     slurm/process_manifest_module.sh
 
 set -euo pipefail
@@ -34,6 +38,7 @@ set -euo pipefail
 
 MANIFEST_LIST="${MANIFEST_LIST:?Error: MANIFEST_LIST not set}"
 OUTPUT_DIR="${OUTPUT_DIR:?Error: OUTPUT_DIR not set}"
+MODEL="${MODEL:-10.5281/zenodo.10592716}"
 
 # Per-task cache dir avoids conflicts between simultaneous array tasks
 CACHE_BASE="${CACHE_BASE:-/scratch/$USER/barnacle/cache}"
@@ -67,6 +72,7 @@ echo "Start Time:          $(date)"
 echo "=========================================="
 echo "Manifest URL:        $MANIFEST_URL"
 echo "Output Path:         $OUTPUT_PATH"
+echo "Model:               $MODEL"
 echo "Cache Directory:     $CACHE_DIR"
 echo "=========================================="
 
@@ -86,6 +92,7 @@ module load barnacle/latest
 echo "Starting OCR processing..."
 
 barnacle ocr "$MANIFEST_URL" \
+  --model "$MODEL" \
   --cache-dir "$CACHE_DIR" \
   --out "$OUTPUT_PATH" \
   --resume \
