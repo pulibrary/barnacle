@@ -223,6 +223,53 @@ When configuring container-mod, ensure the following paths are bind-mounted:
 | `/cache` | Downloaded images (read-write) | User scratch or temp directory |
 | `/output` | OCR output files (read-write) | User scratch directory |
 
+## Time Limits and Recovery
+
+### Default time limit
+
+`slurm/process_manifest_module.sh` requests `#SBATCH --time=12:00:00` by default.
+Large manifests or slow IIIF servers (e.g. rate-limited figgy.princeton.edu) can take
+several hours per task. You can override the default on the command line:
+
+```bash
+sbatch --array=... --time=16:00:00 ... slurm/process_manifest_module.sh
+```
+
+A `--time` flag on the `sbatch` command line **overrides** the `#SBATCH` directive
+inside the script, so no script edits are needed.
+
+### Recovering from timed-out tasks
+
+If tasks exceed the time limit, barnacle's resume mechanism means no work is lost —
+resubmitting a task will skip pages that are already written. Use
+`scripts/find_incomplete.py` to identify which manifests need resubmission:
+
+```bash
+# Generate a recovery manifest list (missing or empty output files)
+python3 scripts/find_incomplete.py \
+    ~/barnacle/data/manifests/tranche-01.txt \
+    /cluster/tufts/lapidusocr/shared/ocr \
+    > ~/barnacle/data/manifests/tranche-01-recovery.txt
+
+wc -l ~/barnacle/data/manifests/tranche-01-recovery.txt  # how many to resubmit
+```
+
+Then resubmit with a longer time limit:
+
+```bash
+N=$(wc -l < ~/barnacle/data/manifests/tranche-01-recovery.txt)
+sbatch --array=1-${N}%50 \
+  --time=12:00:00 \
+  --output=/cluster/tufts/lapidusocr/cwulfm01/logs/barnacle-%A_%a.out \
+  --error=/cluster/tufts/lapidusocr/cwulfm01/logs/barnacle-%A_%a.err \
+  --mail-user=cwulfm01@tufts.edu \
+  --export=ALL,MANIFEST_LIST=$HOME/barnacle/data/manifests/tranche-01-recovery.txt,OUTPUT_DIR=/cluster/tufts/lapidusocr/shared/ocr,MODEL=$HOME/barnacle/models/catmus-print-fondue-large.mlmodel,CACHE_BASE=/cluster/tufts/lapidusocr/cwulfm01/cache \
+  slurm/process_manifest_module.sh
+```
+
+`scripts/run_stats.py` can track overall progress across the original tranche
+while the recovery job runs.
+
 ## Troubleshooting
 
 ### Architecture Mismatch Errors
