@@ -245,14 +245,21 @@ resubmitting a task will skip pages that are already written. Use
 `scripts/find_incomplete.py` to identify which manifests need resubmission:
 
 ```bash
-# Generate a recovery manifest list (missing or empty output files)
+# Full check: missing/empty files AND timed-out jobs detected from logs
 python3 scripts/find_incomplete.py \
     ~/barnacle/data/manifests/tranche-01.txt \
     /cluster/tufts/lapidusocr/shared/ocr \
+    --logs-dir /cluster/tufts/lapidusocr/cwulfm01/logs \
     > ~/barnacle/data/manifests/tranche-01-recovery.txt
 
 wc -l ~/barnacle/data/manifests/tranche-01-recovery.txt  # how many to resubmit
 ```
+
+> **Note:** Do not use `.err` files to detect failures — barnacle's Python logging
+> (INFO level) writes to stderr, so every job (including successful ones) produces a
+> non-empty `.err` file. The `--logs-dir` check instead looks at `.out` files for the
+> word `SUCCESS`, which is only printed on clean exit. Jobs killed by SLURM's time
+> limit never reach that line.
 
 Then resubmit with a longer time limit:
 
