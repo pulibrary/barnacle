@@ -225,6 +225,18 @@ When configuring container-mod, ensure the following paths are bind-mounted:
 
 ## Time Limits and Recovery
 
+### Default resource limits
+
+`slurm/process_manifest_module.sh` requests `#SBATCH --mem=16G` and `#SBATCH --time=12:00:00` by default.
+
+The 16G memory allocation is needed because Kraken's segmentation step on large-format
+images (3000px wide, `catmus-print-fondue-large` model) can exceed 8G and be killed by
+the Linux OOM killer. Both limits can be overridden on the `sbatch` command line:
+
+```bash
+sbatch --array=... --mem=32G --time=16:00:00 ... slurm/process_manifest_module.sh
+```
+
 ### Default time limit
 
 `slurm/process_manifest_module.sh` requests `#SBATCH --time=12:00:00` by default.
