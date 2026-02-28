@@ -122,9 +122,14 @@ def scan_logs(logs_dir):
     return succeeded, failed
 
 
-def count_pages_in_jsonl(jsonl_path):
-    """Return number of valid JSON records in a JSONL file."""
-    count = 0
+def read_jsonl(jsonl_path):
+    """Single-pass read of a JSONL file.
+
+    Returns (page_count, total_elapsed_ms, elapsed_count).
+    """
+    pages = 0
+    total_elapsed_ms = 0
+    elapsed_count = 0
     try:
         with open(str(jsonl_path)) as f:
             for line in f:
@@ -132,13 +137,17 @@ def count_pages_in_jsonl(jsonl_path):
                 if not line:
                     continue
                 try:
-                    json.loads(line)
-                    count += 1
+                    rec = json.loads(line)
+                    pages += 1
+                    elapsed = rec.get("elapsed_ms", 0)
+                    if elapsed > 0:
+                        total_elapsed_ms += elapsed
+                        elapsed_count += 1
                 except ValueError:
                     pass
     except OSError:
         pass
-    return count
+    return pages, total_elapsed_ms, elapsed_count
 
 
 def main():
@@ -196,27 +205,13 @@ def main():
         jsonl_path = args.output_dir / (sha1 + ".jsonl")
 
         has_output = jsonl_path.exists() and jsonl_path.stat().st_size > 0
-        pages = count_pages_in_jsonl(jsonl_path) if has_output else 0
-        total_pages += pages
-
-        # Accumulate timing from records
         if has_output:
-            try:
-                with open(str(jsonl_path)) as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            rec = json.loads(line)
-                            elapsed = rec.get("elapsed_ms", 0)
-                            if elapsed > 0:
-                                total_elapsed_ms += elapsed
-                                elapsed_count += 1
-                        except ValueError:
-                            pass
-            except OSError:
-                pass
+            pages, elapsed_ms, n_elapsed = read_jsonl(jsonl_path)
+            total_pages += pages
+            total_elapsed_ms += elapsed_ms
+            elapsed_count += n_elapsed
+        else:
+            pages = 0
 
         # Determine status
         if have_logs:
