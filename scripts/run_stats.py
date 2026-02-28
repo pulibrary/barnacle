@@ -293,10 +293,8 @@ def main():
             "task", "pages", "status ", "url"))
         print("  {}  {}  {}  {}".format("-" * 6, "-" * 7, "-" * 7, "-" * 40))
         for task_id, url, pages, status in incomplete_rows:
-            # Truncate URL for display
-            display_url = url if len(url) <= 55 else url[:52] + "..."
             print("  [{:>4}]  {:>7}  {:<7}  {}".format(
-                task_id, pages, status, display_url))
+                task_id, pages, status, url))
         print()
 
     if job_id and failed_task_ids:
