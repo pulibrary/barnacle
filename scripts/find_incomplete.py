@@ -73,8 +73,12 @@ def find_failed_urls_in_logs(logs_dir):
     "Manifest URL:" line (i.e. it is a barnacle log) but does not contain
     the word "SUCCESS" (printed only on clean exit).
 
+    A URL that has *any* successful log is excluded even if it also has
+    older failed logs (i.e. successful retries are not reported as failures).
+
     Returns a set of manifest URLs.
     """
+    succeeded = set()
     failed = set()
     pattern = os.path.join(logs_dir, "*.out")
     for log_path in glob.glob(pattern):
@@ -88,18 +92,21 @@ def find_failed_urls_in_logs(logs_dir):
             # Not a barnacle log (could be from another job)
             continue
 
-        if "SUCCESS" in contents:
-            continue
-
-        # Extract the manifest URL from the log header line
+        url = None
         for line in contents.splitlines():
             if line.startswith("Manifest URL:"):
                 url = line.split("Manifest URL:", 1)[1].strip()
-                if url:
-                    failed.add(url)
                 break
 
-    return failed
+        if not url:
+            continue
+
+        if "SUCCESS" in contents:
+            succeeded.add(url)
+        else:
+            failed.add(url)
+
+    return failed - succeeded
 
 
 def parse_args(argv):
