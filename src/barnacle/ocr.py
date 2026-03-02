@@ -96,6 +96,7 @@ class KrakenBackend:
                     capture_output=True,
                     text=True,
                     check=True,
+                    timeout=600,
                 )
             except FileNotFoundError as e:
                 raise typer.BadParameter(
@@ -103,6 +104,8 @@ class KrakenBackend:
                 ) from e
             except subprocess.CalledProcessError as e:
                 raise typer.BadParameter(f"Kraken OCR failed:\n{e.stderr or e.stdout}") from e
+            except subprocess.TimeoutExpired:
+                raise RuntimeError(f"Kraken OCR timed out after 600s on {image_path.name}")
 
             if out_path.exists():
                 return out_path.read_text(encoding="utf-8", errors="replace")
