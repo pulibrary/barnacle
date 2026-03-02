@@ -4,6 +4,9 @@ Count pages (canvases) for each manifest in a manifest list.
 Outputs a CSV with one row per manifest: url, page_count.
 Prints summary statistics to stderr.
 
+Requires only the Python standard library; runs on the cluster (Python 3.6+)
+or locally without needing the barnacle package.
+
 Usage:
     python3 scripts/count_pages.py data/manifests/tranche-01.txt
     python3 scripts/count_pages.py data/manifests/tranche-01.txt --output counts.csv
@@ -12,13 +15,25 @@ Usage:
 
 import argparse
 import csv
+import json
 import sys
+import urllib.request
+import urllib.error
 from pathlib import Path
 
-from barnacle.iiif.v2 import iter_manifests
+
+def count_canvases(url):
+    """Fetch a IIIF v2 manifest and return its canvas count."""
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    sequences = data.get("sequences", [])
+    if not sequences:
+        return 0
+    return len(sequences[0].get("canvases", []))
 
 
-def main() -> None:
+def main():
     parser = argparse.ArgumentParser(description="Count pages per manifest")
     parser.add_argument("manifest_list", type=Path, help="File with manifest URLs (one per line)")
     parser.add_argument("--output", "-o", type=Path, default=None, help="CSV output file (default: stdout)")
@@ -31,20 +46,23 @@ def main() -> None:
         if line.strip() and not line.startswith("#")
     ]
 
-    rows: list[tuple[str, int]] = []
-    failed: list[str] = []
+    rows = []
+    failed = []
 
     for i, url in enumerate(urls, 1):
-        print(f"[{i}/{len(urls)}] {url}", file=sys.stderr)
+        print("[{}/{}] {}".format(i, len(urls), url), file=sys.stderr)
         try:
-            for manifest_id, manifest in iter_manifests(url):
-                rows.append((manifest_id, len(manifest.canvases())))
+            count = count_canvases(url)
+            rows.append((url, count))
         except Exception as e:
-            print(f"  ERROR: {e}", file=sys.stderr)
+            print("  ERROR: {}".format(e), file=sys.stderr)
             failed.append(url)
 
     # Write CSV
-    out = open(args.output, "w", newline="", encoding="utf-8") if args.output else sys.stdout
+    if args.output:
+        out = open(str(args.output), "w", newline="", encoding="utf-8")
+    else:
+        out = sys.stdout
     try:
         writer = csv.writer(out)
         writer.writerow(["manifest_url", "page_count"])
@@ -59,20 +77,18 @@ def main() -> None:
 
     # Summary
     if rows:
-        counts = [r[1] for r in rows]
-        counts_sorted = sorted(counts)
+        counts = sorted(r[1] for r in rows)
         n = len(counts)
         total = sum(counts)
-        print(f"\n--- Summary ---", file=sys.stderr)
-        print(f"Manifests:  {n}", file=sys.stderr)
-        print(f"Failed:     {len(failed)}", file=sys.stderr)
-        print(f"Total pages:{total:>8,}", file=sys.stderr)
-        print(f"Mean:       {total/n:>8.1f}", file=sys.stderr)
-        print(f"Min:        {counts_sorted[0]:>8,}", file=sys.stderr)
-        print(f"Median:     {counts_sorted[n//2]:>8,}", file=sys.stderr)
-        print(f"Max:        {counts_sorted[-1]:>8,}", file=sys.stderr)
-        p90 = counts_sorted[int(n * 0.9)]
-        print(f"p90:        {p90:>8,}", file=sys.stderr)
+        print("\n--- Summary ---", file=sys.stderr)
+        print("Manifests:  {}".format(n), file=sys.stderr)
+        print("Failed:     {}".format(len(failed)), file=sys.stderr)
+        print("Total pages:{:>8,}".format(total), file=sys.stderr)
+        print("Mean:       {:>8.1f}".format(total / n), file=sys.stderr)
+        print("Min:        {:>8,}".format(counts[0]), file=sys.stderr)
+        print("Median:     {:>8,}".format(counts[n // 2]), file=sys.stderr)
+        print("Max:        {:>8,}".format(counts[-1]), file=sys.stderr)
+        print("p90:        {:>8,}".format(counts[int(n * 0.9)]), file=sys.stderr)
 
 
 if __name__ == "__main__":
