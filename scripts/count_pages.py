@@ -1,7 +1,7 @@
 """
 Count pages (canvases) for each manifest in a manifest list.
 
-Outputs a CSV with one row per manifest: url, page_count.
+Outputs a CSV with one row per manifest: url, page_count, est_time.
 Prints summary statistics to stderr.
 
 Requires only the Python standard library; runs on the cluster (Python 3.6+)
@@ -11,6 +11,7 @@ Usage:
     python3 scripts/count_pages.py data/manifests/tranche-01.txt
     python3 scripts/count_pages.py data/manifests/tranche-01.txt --output counts.csv
     python3 scripts/count_pages.py data/manifests/tranche-01.txt --output counts.csv --errors errors.txt
+    python3 scripts/count_pages.py data/manifests/all.txt --output all_page_counts.csv --secs-per-page 53
 """
 
 import argparse
@@ -20,6 +21,13 @@ import sys
 import urllib.request
 import urllib.error
 from pathlib import Path
+
+
+def fmt_hms(seconds):
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    return "{:d}:{:02d}:{:02d}".format(h, m, s)
 
 
 def count_canvases(url):
@@ -38,6 +46,8 @@ def main():
     parser.add_argument("manifest_list", type=Path, help="File with manifest URLs (one per line)")
     parser.add_argument("--output", "-o", type=Path, default=None, help="CSV output file (default: stdout)")
     parser.add_argument("--errors", "-e", type=Path, default=None, help="File to write failed URLs to")
+    parser.add_argument("--secs-per-page", type=float, default=53.0,
+                        help="Seconds per page for processing time estimate (default: 53)")
     args = parser.parse_args()
 
     urls = [
@@ -46,38 +56,44 @@ def main():
         if line.strip() and not line.startswith("#")
     ]
 
-    rows = []
+    counts = []
     failed = []
 
-    for i, url in enumerate(urls, 1):
-        print("[{}/{}] {}".format(i, len(urls), url), file=sys.stderr)
-        try:
-            count = count_canvases(url)
-            rows.append((url, count))
-        except Exception as e:
-            print("  ERROR: {}".format(e), file=sys.stderr)
-            failed.append(url)
-
-    # Write CSV
+    # Open output file before loop so rows are flushed incrementally
     if args.output:
         out = open(str(args.output), "w", newline="", encoding="utf-8")
     else:
         out = sys.stdout
+
+    err_fh = open(str(args.errors), "w", encoding="utf-8") if args.errors else None
+
     try:
         writer = csv.writer(out)
-        writer.writerow(["manifest_url", "page_count"])
-        writer.writerows(rows)
+        writer.writerow(["manifest_url", "page_count", "est_time"])
+        out.flush()
+
+        for i, url in enumerate(urls, 1):
+            print("[{}/{}] {}".format(i, len(urls), url), file=sys.stderr)
+            try:
+                count = count_canvases(url)
+                writer.writerow([url, count, fmt_hms(count * args.secs_per_page)])
+                out.flush()
+                counts.append(count)
+            except Exception as e:
+                print("  ERROR: {}".format(e), file=sys.stderr)
+                failed.append(url)
+                if err_fh:
+                    err_fh.write(url + "\n")
+                    err_fh.flush()
     finally:
         if args.output:
             out.close()
-
-    # Write errors file
-    if failed and args.errors:
-        args.errors.write_text("\n".join(failed) + "\n", encoding="utf-8")
+        if err_fh:
+            err_fh.close()
 
     # Summary
-    if rows:
-        counts = sorted(r[1] for r in rows)
+    if counts:
+        counts = sorted(counts)
         n = len(counts)
         total = sum(counts)
         print("\n--- Summary ---", file=sys.stderr)
@@ -89,6 +105,7 @@ def main():
         print("Median:     {:>8,}".format(counts[n // 2]), file=sys.stderr)
         print("Max:        {:>8,}".format(counts[-1]), file=sys.stderr)
         print("p90:        {:>8,}".format(counts[int(n * 0.9)]), file=sys.stderr)
+        print("Est total:  {}".format(fmt_hms(total * args.secs_per_page)), file=sys.stderr)
 
 
 if __name__ == "__main__":
