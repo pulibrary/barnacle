@@ -416,10 +416,13 @@ def ocr_cmd(
 
         if result.success:
             total_pages += result.pages_processed
+            timeout_note = (
+                f" ({result.pages_timed_out} timed out)" if result.pages_timed_out > 0 else ""
+            )
             typer.echo(
                 f"✅ Completed: {result.pages_processed} pages processed, "
                 f"{result.pages_skipped} skipped, "
-                f"{result.pages_failed} failed "
+                f"{result.pages_failed} failed{timeout_note} "
                 f"({result.elapsed_seconds:.1f}s)"
             )
         else:

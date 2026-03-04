@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import httpx
 
 from barnacle.iiif.v2 import load_manifest, validate_manifest, ValidationIssue
-from barnacle.ocr import KrakenBackend
+from barnacle.ocr import KrakenBackend, KrakenTimeoutError
 
 from .output import page_key, load_processed_keys, append_record
 
@@ -50,6 +50,7 @@ class ProcessingResult:
     pages_processed: int
     pages_skipped: int
     pages_failed: int
+    pages_timed_out: int
     validation_issues: list[ValidationIssue]
     elapsed_seconds: float
     success: bool
@@ -138,6 +139,7 @@ def process_manifest(
     pages_processed = 0
     pages_skipped = 0
     pages_failed = 0
+    pages_timed_out = 0
 
     # Initialize OCR backend
     backend = KrakenBackend(model_auto_install=model_auto_install)
@@ -163,6 +165,7 @@ def process_manifest(
                 pages_processed=0,
                 pages_skipped=0,
                 pages_failed=0,
+                pages_timed_out=0,
                 validation_issues=validation_issues,
                 elapsed_seconds=elapsed,
                 success=False,
@@ -226,8 +229,19 @@ def process_manifest(
             try:
                 text_out = backend.ocr_image(img_path, model=resolved_model)
                 elapsed_ms = int((time.perf_counter() - t0) * 1000)
+            except KrakenTimeoutError as e:
+                logger.warning(
+                    "OCR timeout for canvas %d (%s): %s",
+                    c_i, image_url, e, exc_info=False,
+                )
+                pages_timed_out += 1
+                pages_failed += 1
+                continue
             except Exception as e:
-                logger.warning("OCR failed for %s: %s", img_path.name, e, exc_info=True)
+                logger.warning(
+                    "OCR failed for canvas %d (%s): %s",
+                    c_i, image_url, e, exc_info=True,
+                )
                 pages_failed += 1
                 continue
 
@@ -263,6 +277,7 @@ def process_manifest(
             pages_processed=pages_processed,
             pages_skipped=pages_skipped,
             pages_failed=pages_failed,
+            pages_timed_out=pages_timed_out,
             validation_issues=[],
             elapsed_seconds=elapsed,
             success=True,
@@ -276,6 +291,7 @@ def process_manifest(
             pages_processed=pages_processed,
             pages_skipped=pages_skipped,
             pages_failed=pages_failed,
+            pages_timed_out=pages_timed_out,
             validation_issues=[],
             elapsed_seconds=elapsed,
             success=False,

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
+import signal
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -12,6 +14,12 @@ import typer
 
 # CATMuS Print Fondue Large model - default for Kraken OCR
 DEFAULT_MODEL = "10.5281/zenodo.10592716"
+
+OCR_TIMEOUT = 600  # seconds
+
+
+class KrakenTimeoutError(RuntimeError):
+    """Raised when kraken OCR exceeds the per-image timeout."""
 
 
 class OCRBackend(Protocol):
@@ -79,33 +87,43 @@ class KrakenBackend:
         """Run OCR on a single image and return recognized text (possibly empty)."""
         with tempfile.TemporaryDirectory(prefix="barnacle-kraken-") as td:
             out_path = Path(td) / "out.txt"
+            cmd = [
+                "kraken",
+                "-i",
+                str(image_path),
+                str(out_path),
+                "binarize",
+                "segment",
+                "-bl",
+                "ocr",
+                "-m",
+                model,
+            ]
             try:
-                subprocess.run(
-                    [
-                        "kraken",
-                        "-i",
-                        str(image_path),
-                        str(out_path),
-                        "binarize",
-                        "segment",
-                        "-bl",
-                        "ocr",
-                        "-m",
-                        model,
-                    ],
-                    capture_output=True,
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
-                    check=True,
-                    timeout=600,
+                    preexec_fn=os.setsid,  # new process group → killpg kills all children
                 )
             except FileNotFoundError as e:
                 raise typer.BadParameter(
                     "Kraken CLI not found. Install `kraken` and ensure `kraken` is on your PATH."
                 ) from e
-            except subprocess.CalledProcessError as e:
-                raise typer.BadParameter(f"Kraken OCR failed:\n{e.stderr or e.stdout}") from e
+            try:
+                stdout, stderr = proc.communicate(timeout=OCR_TIMEOUT)
             except subprocess.TimeoutExpired:
-                raise RuntimeError(f"Kraken OCR timed out after 600s on {image_path.name}")
+                try:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.communicate()  # reap zombie
+                raise KrakenTimeoutError(
+                    f"Kraken OCR timed out after {OCR_TIMEOUT}s on {image_path.name}"
+                )
+            if proc.returncode != 0:
+                raise subprocess.CalledProcessError(proc.returncode, cmd, stdout, stderr)
 
             if out_path.exists():
                 return out_path.read_text(encoding="utf-8", errors="replace")
