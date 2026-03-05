@@ -358,6 +358,9 @@ def ocr_cmd(
         "--clear-cache-after/--keep-cache",
         help="Delete downloaded images after each manifest is successfully processed",
     ),
+    ocr_timeout: int = typer.Option(
+        120, "--ocr-timeout", help="Per-image kraken timeout in seconds (default: 120)"
+    ),
 ) -> None:
     """
     Run Kraken OCR over a IIIF v2 manifest (or collection of manifests) and write JSONL output.
@@ -401,6 +404,7 @@ def ocr_cmd(
             ark=ark,
             model_auto_install=model_auto_install,
             clear_cache_after=clear_cache_after,
+            ocr_timeout=ocr_timeout,
         )
 
         # Report results

@@ -15,7 +15,7 @@ import typer
 # CATMuS Print Fondue Large model - default for Kraken OCR
 DEFAULT_MODEL = "10.5281/zenodo.10592716"
 
-OCR_TIMEOUT = 600  # seconds
+OCR_TIMEOUT = 120  # seconds
 
 
 class KrakenTimeoutError(RuntimeError):
@@ -48,6 +48,7 @@ class KrakenBackend:
 
     name: str = "kraken"
     model_auto_install: bool = True
+    timeout: int = OCR_TIMEOUT
     logger: logging.Logger | None = None
 
     def resolve_model(self, model_ref: str) -> str:
@@ -112,7 +113,7 @@ class KrakenBackend:
                     "Kraken CLI not found. Install `kraken` and ensure `kraken` is on your PATH."
                 ) from e
             try:
-                stdout, stderr = proc.communicate(timeout=OCR_TIMEOUT)
+                stdout, stderr = proc.communicate(timeout=self.timeout)
             except subprocess.TimeoutExpired:
                 try:
                     os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
@@ -120,7 +121,7 @@ class KrakenBackend:
                     pass
                 proc.communicate()  # reap zombie
                 raise KrakenTimeoutError(
-                    f"Kraken OCR timed out after {OCR_TIMEOUT}s on {image_path.name}"
+                    f"Kraken OCR timed out after {self.timeout}s on {image_path.name}"
                 )
             if proc.returncode != 0:
                 raise subprocess.CalledProcessError(proc.returncode, cmd, stdout, stderr)

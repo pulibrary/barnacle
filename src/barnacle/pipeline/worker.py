@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 import httpx
 
 from barnacle.iiif.v2 import load_manifest, validate_manifest, ValidationIssue
-from barnacle.ocr import KrakenBackend, KrakenTimeoutError
+from barnacle.ocr import KrakenBackend, KrakenTimeoutError, OCR_TIMEOUT
 
 from .output import page_key, load_processed_keys, append_record
 
@@ -85,6 +85,7 @@ def process_manifest(
     max_pages: int | None = None,
     resume: bool = True,
     model_auto_install: bool = True,
+    ocr_timeout: int = OCR_TIMEOUT,
     size: str = DEFAULT_IIIF_SIZE,
     fmt: str = DEFAULT_IIIF_FORMAT,
     quality: str = DEFAULT_IIIF_QUALITY,
@@ -142,7 +143,7 @@ def process_manifest(
     pages_timed_out = 0
 
     # Initialize OCR backend
-    backend = KrakenBackend(model_auto_install=model_auto_install)
+    backend = KrakenBackend(model_auto_install=model_auto_install, timeout=ocr_timeout)
     resolved_model = backend.resolve_model(model)
 
     # Setup cache directory
