@@ -148,3 +148,35 @@ def append_record(output_path: Path, record: dict[str, Any]) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def run_report_path(output_path: Path) -> Path:
+    """Sidecar path for a manifest JSONL output file."""
+    return output_path.with_suffix(".run.json")
+
+
+def write_run_report(output_path: Path, report: dict) -> None:
+    """Write (overwrite) the sidecar run report as pretty-printed JSON."""
+    run_report_path(output_path).write_text(
+        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def read_jsonl_records(path: Path) -> list[dict]:
+    """Read all valid JSON records from a JSONL file."""
+    records = []
+    if not path.exists():
+        return records
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    except OSError:
+        pass
+    return records

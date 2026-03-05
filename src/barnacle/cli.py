@@ -39,6 +39,8 @@ from barnacle.pipeline.output import (
     load_processed_keys,
     append_record,
     manifest_output_path,
+    run_report_path,
+    read_jsonl_records,
 )
 from barnacle.pipeline.worker import process_manifest
 
@@ -480,6 +482,204 @@ def sample_image_url_cmd(
 
     typer.echo("Could not find an Image API service @id in any manifest.", err=True)
     raise typer.Exit(code=2)
+
+
+@app.command("report-batch")
+def report_batch_cmd(
+    manifest_list: Path = typer.Argument(..., help="Manifest list file (one URL per line)"),
+    output_dir: Path = typer.Argument(..., help="Directory containing JSONL/sidecar output files"),
+    out: Path = typer.Option(Path("report.csv"), "--out", help="Output CSV path"),
+) -> None:
+    """
+    Summarise batch OCR progress across a manifest list.
+
+    Reads {sha1}.run.json sidecars from OUTPUT_DIR and writes one CSV row per manifest.
+
+    Example:
+        barnacle report-batch tranche-03.txt /path/to/ocr --out /tmp/batch.csv
+    """
+    import csv
+
+    manifest_list = manifest_list.expanduser()
+    output_dir = output_dir.expanduser()
+    out = out.expanduser()
+
+    if not manifest_list.exists():
+        typer.echo(f"Error: manifest list not found: {manifest_list}", err=True)
+        raise typer.Exit(code=1)
+
+    urls = []
+    with manifest_list.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                urls.append(line)
+
+    fieldnames = [
+        "manifest_url", "total_pages", "pages_processed", "pages_failed",
+        "pages_timed_out", "completion_pct", "total_time_s", "avg_time_per_page_s", "status",
+    ]
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for url in urls:
+            jsonl_path = manifest_output_path(url, output_dir)
+            sidecar = run_report_path(jsonl_path)
+
+            if not sidecar.exists():
+                writer.writerow({
+                    "manifest_url": url,
+                    "total_pages": "",
+                    "pages_processed": 0,
+                    "pages_failed": "",
+                    "pages_timed_out": "",
+                    "completion_pct": "",
+                    "total_time_s": "",
+                    "avg_time_per_page_s": "",
+                    "status": "missing",
+                })
+                continue
+
+            try:
+                data = json.loads(sidecar.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError) as e:
+                typer.echo(f"Warning: could not read sidecar for {url}: {e}", err=True)
+                writer.writerow({
+                    "manifest_url": url,
+                    "total_pages": "",
+                    "pages_processed": 0,
+                    "pages_failed": "",
+                    "pages_timed_out": "",
+                    "completion_pct": "",
+                    "total_time_s": "",
+                    "avg_time_per_page_s": "",
+                    "status": "missing",
+                })
+                continue
+
+            total = data.get("pages_total_in_manifest", 0)
+            processed = data.get("pages_processed", 0)
+            failed = data.get("pages_failed", "")
+            timed_out = data.get("pages_timed_out", "")
+            elapsed = data.get("total_elapsed_s", "")
+
+            if total and processed == total:
+                status = "complete"
+            else:
+                status = "partial"
+
+            completion_pct = round(processed / total * 100, 1) if total else ""
+            avg_time = round(elapsed / processed, 2) if (elapsed != "" and processed) else ""
+
+            writer.writerow({
+                "manifest_url": url,
+                "total_pages": total if total else "",
+                "pages_processed": processed,
+                "pages_failed": failed,
+                "pages_timed_out": timed_out,
+                "completion_pct": completion_pct,
+                "total_time_s": elapsed,
+                "avg_time_per_page_s": avg_time,
+                "status": status,
+            })
+
+    typer.echo(f"Wrote {len(urls)} rows to {out}")
+
+
+@app.command("report-manifest")
+def report_manifest_cmd(
+    manifest_url: str = typer.Argument(..., help="IIIF manifest URL"),
+    output_dir: Path = typer.Argument(..., help="Directory containing JSONL/sidecar output files"),
+    out: Path | None = typer.Option(None, "--out", help="Output CSV path (default: {sha1}_report.csv)"),
+) -> None:
+    """
+    Per-page detail report for a single manifest.
+
+    Reads the sidecar and JSONL output for MANIFEST_URL and writes one CSV row per canvas.
+
+    Example:
+        barnacle report-manifest https://figgy.princeton.edu/.../manifest /path/to/ocr
+    """
+    import csv
+
+    output_dir = output_dir.expanduser()
+    jsonl_path = manifest_output_path(manifest_url, output_dir)
+    sidecar_path = run_report_path(jsonl_path)
+
+    if not sidecar_path.exists():
+        typer.echo(f"Error: no sidecar found at {sidecar_path}", err=True)
+        raise typer.Exit(code=1)
+
+    try:
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        typer.echo(f"Error: could not read sidecar: {e}", err=True)
+        raise typer.Exit(code=1)
+
+    if out is None:
+        sha1 = jsonl_path.stem
+        out = Path(f"{sha1}_report.csv")
+    out = out.expanduser()
+
+    # Build lookup structures
+    failure_by_index: dict[int, dict] = {}
+    for f in sidecar.get("failures", []):
+        ci = f.get("canvas_index")
+        if ci is not None:
+            failure_by_index[ci] = f
+
+    # Read JSONL for processed page details
+    records = read_jsonl_records(jsonl_path)
+    processed_by_index: dict[int, dict] = {
+        r["canvas_index"]: r for r in records if "canvas_index" in r
+    }
+
+    total = sidecar.get("pages_total_in_manifest", 0)
+    all_indices = set(processed_by_index.keys()) | set(failure_by_index.keys())
+    # Ensure we cover all indices up to total if total is known
+    if total:
+        all_indices = all_indices | set(range(total))
+
+    fieldnames = ["canvas_index", "image_url", "status", "elapsed_ms", "text_length"]
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for ci in sorted(all_indices):
+            if ci in processed_by_index:
+                rec = processed_by_index[ci]
+                writer.writerow({
+                    "canvas_index": ci,
+                    "image_url": rec.get("image_url", ""),
+                    "status": "processed",
+                    "elapsed_ms": rec.get("elapsed_ms", ""),
+                    "text_length": len(rec.get("text", "")) if "text" in rec else "",
+                })
+            elif ci in failure_by_index:
+                f = failure_by_index[ci]
+                writer.writerow({
+                    "canvas_index": ci,
+                    "image_url": f.get("image_url") or "",
+                    "status": f.get("reason", "unknown"),
+                    "elapsed_ms": "",
+                    "text_length": "",
+                })
+            else:
+                # Canvas index in range but no record — skipped (resume) or not yet run
+                writer.writerow({
+                    "canvas_index": ci,
+                    "image_url": "",
+                    "status": "skipped",
+                    "elapsed_ms": "",
+                    "text_length": "",
+                })
+
+    typer.echo(f"Wrote report to {out}")
 
 
 def main() -> None:

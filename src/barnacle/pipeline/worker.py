@@ -19,7 +19,7 @@ import httpx
 from barnacle.iiif.v2 import load_manifest, validate_manifest, ValidationIssue
 from barnacle.ocr import KrakenBackend, KrakenTimeoutError, OCR_TIMEOUT
 
-from .output import page_key, load_processed_keys, append_record
+from .output import page_key, load_processed_keys, append_record, run_report_path, write_run_report
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +141,7 @@ def process_manifest(
     pages_skipped = 0
     pages_failed = 0
     pages_timed_out = 0
+    failures: list[dict] = []
 
     # Initialize OCR backend
     backend = KrakenBackend(model_auto_install=model_auto_install, timeout=ocr_timeout)
@@ -161,6 +162,21 @@ def process_manifest(
         if validation_issues:
             # Manifest has validation issues, return early
             elapsed = time.perf_counter() - start_time
+            try:
+                write_run_report(output_path, {
+                    "manifest_url": manifest_id,
+                    "run_completed_at": datetime.now(timezone.utc).isoformat(),
+                    "model": resolved_model,
+                    "pages_total_in_manifest": 0,
+                    "pages_processed": 0,
+                    "pages_skipped": 0,
+                    "pages_failed": 0,
+                    "pages_timed_out": 0,
+                    "total_elapsed_s": round(elapsed, 2),
+                    "failures": [{"canvas_index": None, "image_url": None, "reason": "validation_failed"}],
+                })
+            except Exception:
+                pass
             return ProcessingResult(
                 manifest_id=manifest_id,
                 pages_processed=0,
@@ -188,6 +204,7 @@ def process_manifest(
             )
 
             if image_url is None:
+                failures.append({"canvas_index": c_i, "image_url": None, "reason": "no_image_url"})
                 pages_failed += 1
                 continue
 
@@ -222,6 +239,7 @@ def process_manifest(
                     img_path.write_bytes(img_bytes)
                 except httpx.HTTPError as e:
                     logger.warning("Failed to fetch image %s: %s", image_url, e)
+                    failures.append({"canvas_index": c_i, "image_url": image_url, "reason": "http_error"})
                     pages_failed += 1
                     continue
 
@@ -235,6 +253,7 @@ def process_manifest(
                     "OCR timeout for canvas %d (%s): %s",
                     c_i, image_url, e, exc_info=False,
                 )
+                failures.append({"canvas_index": c_i, "image_url": image_url, "reason": "timeout"})
                 pages_timed_out += 1
                 pages_failed += 1
                 continue
@@ -243,6 +262,7 @@ def process_manifest(
                     "OCR failed for canvas %d (%s): %s",
                     c_i, image_url, e, exc_info=True,
                 )
+                failures.append({"canvas_index": c_i, "image_url": image_url, "reason": "ocr_error"})
                 pages_failed += 1
                 continue
 
@@ -273,6 +293,18 @@ def process_manifest(
             logger.debug("Deleted %d cached images for %s", len(img_paths_used), manifest_id)
 
         elapsed = time.perf_counter() - start_time
+        write_run_report(output_path, {
+            "manifest_url": manifest_id,
+            "run_completed_at": datetime.now(timezone.utc).isoformat(),
+            "model": resolved_model,
+            "pages_total_in_manifest": pages_processed + pages_skipped + pages_failed,
+            "pages_processed": pages_processed,
+            "pages_skipped": pages_skipped,
+            "pages_failed": pages_failed,
+            "pages_timed_out": pages_timed_out,
+            "total_elapsed_s": round(elapsed, 2),
+            "failures": failures,
+        })
         return ProcessingResult(
             manifest_id=manifest_id,
             pages_processed=pages_processed,
@@ -287,6 +319,21 @@ def process_manifest(
     except Exception as e:
         logger.exception("Unhandled error processing manifest %s: %s", manifest_id, e)
         elapsed = time.perf_counter() - start_time
+        try:
+            write_run_report(output_path, {
+                "manifest_url": manifest_id,
+                "run_completed_at": datetime.now(timezone.utc).isoformat(),
+                "model": resolved_model,
+                "pages_total_in_manifest": pages_processed + pages_skipped + pages_failed,
+                "pages_processed": pages_processed,
+                "pages_skipped": pages_skipped,
+                "pages_failed": pages_failed,
+                "pages_timed_out": pages_timed_out,
+                "total_elapsed_s": round(elapsed, 2),
+                "failures": failures,
+            })
+        except Exception:
+            pass
         return ProcessingResult(
             manifest_id=manifest_id,
             pages_processed=pages_processed,
