@@ -18,6 +18,7 @@ import httpx
 
 from barnacle.iiif.v2 import load_manifest, validate_manifest, ValidationIssue
 from barnacle.ocr import KrakenBackend, KrakenTimeoutError, OCR_TIMEOUT
+from barnacle.iiif.v2.loaders import MANIFEST_TIMEOUT
 
 from .output import page_key, load_processed_keys, append_record, run_report_path, write_run_report
 
@@ -86,6 +87,7 @@ def process_manifest(
     resume: bool = True,
     model_auto_install: bool = True,
     ocr_timeout: int = OCR_TIMEOUT,
+    manifest_timeout: int = MANIFEST_TIMEOUT,
     size: str = DEFAULT_IIIF_SIZE,
     fmt: str = DEFAULT_IIIF_FORMAT,
     quality: str = DEFAULT_IIIF_QUALITY,
@@ -156,7 +158,7 @@ def process_manifest(
 
     try:
         # Load and validate manifest
-        manifest = load_manifest(manifest_id)
+        manifest = load_manifest(manifest_id, timeout=manifest_timeout)
         validation_issues = validate_manifest(manifest)
 
         if validation_issues:

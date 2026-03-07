@@ -40,6 +40,7 @@ MANIFEST_LIST="${MANIFEST_LIST:?Error: MANIFEST_LIST not set}"
 OUTPUT_DIR="${OUTPUT_DIR:?Error: OUTPUT_DIR not set}"
 MODEL="${MODEL:-10.5281/zenodo.10592716}"
 OCR_TIMEOUT="${OCR_TIMEOUT:-120}"
+MANIFEST_TIMEOUT="${MANIFEST_TIMEOUT:-60}"
 
 # Per-task cache dir avoids conflicts between simultaneous array tasks
 CACHE_BASE="${CACHE_BASE:-/scratch/$USER/barnacle/cache}"
@@ -75,6 +76,7 @@ echo "Manifest URL:        $MANIFEST_URL"
 echo "Output Path:         $OUTPUT_PATH"
 echo "Model:               $MODEL"
 echo "OCR Timeout:         ${OCR_TIMEOUT}s"
+echo "Manifest Timeout:    ${MANIFEST_TIMEOUT}s"
 echo "Cache Directory:     $CACHE_DIR"
 echo "=========================================="
 
@@ -100,7 +102,8 @@ barnacle ocr "$MANIFEST_URL" \
   --resume \
   --clear-cache-after \
   --log-level INFO \
-  --ocr-timeout "$OCR_TIMEOUT"
+  --ocr-timeout "$OCR_TIMEOUT" \
+  --manifest-timeout "$MANIFEST_TIMEOUT"
 
 EXIT_CODE=$?
 

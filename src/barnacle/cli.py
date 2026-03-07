@@ -363,6 +363,9 @@ def ocr_cmd(
     ocr_timeout: int = typer.Option(
         120, "--ocr-timeout", help="Per-image kraken timeout in seconds (default: 120)"
     ),
+    manifest_timeout: int = typer.Option(
+        60, "--manifest-timeout", help="Manifest fetch timeout in seconds (default: 60)"
+    ),
 ) -> None:
     """
     Run Kraken OCR over a IIIF v2 manifest (or collection of manifests) and write JSONL output.
@@ -407,6 +410,7 @@ def ocr_cmd(
             model_auto_install=model_auto_install,
             clear_cache_after=clear_cache_after,
             ocr_timeout=ocr_timeout,
+            manifest_timeout=manifest_timeout,
         )
 
         # Report results

@@ -16,7 +16,10 @@ import httpx
 from .models import Manifest, Collection
 
 
-def fetch_json(url: str, *, timeout: float = 10.0) -> dict[str, Any]:
+MANIFEST_TIMEOUT = 60  # seconds; ?flatten=true manifests can be slow to generate
+
+
+def fetch_json(url: str, *, timeout: float = MANIFEST_TIMEOUT) -> dict[str, Any]:
     """
     Fetch JSON from URL.
 
@@ -37,7 +40,7 @@ def fetch_json(url: str, *, timeout: float = 10.0) -> dict[str, Any]:
         return resp.json()
 
 
-def load_json(path_or_url: str) -> dict[str, Any]:
+def load_json(path_or_url: str, *, timeout: float = MANIFEST_TIMEOUT) -> dict[str, Any]:
     """
     Load JSON from file path or URL.
 
@@ -46,6 +49,7 @@ def load_json(path_or_url: str) -> dict[str, Any]:
 
     Parameters:
         path_or_url: File path or URL
+        timeout: Request timeout in seconds (URL fetches only)
 
     Returns:
         Parsed JSON as dictionary
@@ -60,7 +64,7 @@ def load_json(path_or_url: str) -> dict[str, Any]:
         >>> data = load_json("/path/to/manifest.json")
     """
     if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
-        return fetch_json(path_or_url)
+        return fetch_json(path_or_url, timeout=timeout)
 
     p = Path(path_or_url).expanduser()
     return json.loads(p.read_text(encoding="utf-8"))
@@ -110,7 +114,7 @@ def parse_collection(data: dict[str, Any]) -> Collection:
     return Collection.model_validate(data)
 
 
-def load_manifest(path_or_url: str) -> Manifest:
+def load_manifest(path_or_url: str, *, timeout: float = MANIFEST_TIMEOUT) -> Manifest:
     """
     Load and parse manifest from path or URL.
 
@@ -133,11 +137,11 @@ def load_manifest(path_or_url: str) -> Manifest:
         >>> print(manifest.id)
         >>> print(len(manifest.canvases()))
     """
-    data = load_json(path_or_url)
+    data = load_json(path_or_url, timeout=timeout)
     return parse_manifest(data)
 
 
-def load_collection(path_or_url: str) -> Collection:
+def load_collection(path_or_url: str, *, timeout: float = MANIFEST_TIMEOUT) -> Collection:
     """
     Load and parse collection from path or URL.
 
@@ -160,5 +164,5 @@ def load_collection(path_or_url: str) -> Collection:
         >>> print(collection.id)
         >>> print(len(collection.manifest_ids()))
     """
-    data = load_json(path_or_url)
+    data = load_json(path_or_url, timeout=timeout)
     return parse_collection(data)
