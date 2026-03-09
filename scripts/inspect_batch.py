@@ -29,6 +29,7 @@ FIELDS = [
     "parent_manifest_url",
     "source_metadata_id",
     "ark",
+    "dpul_url",
     "title",
     "creator",
     "date",
@@ -57,6 +58,10 @@ LABEL_MAP = {
     "subject": "subject",
     "member of collections": "collections",
 }
+
+
+def ark_to_dpul_url(ark):
+    return "https://dpul.princeton.edu/lapidus2025/catalog/" + ark.split("/")[-1] if ark else ""
 
 
 def fetch_json(url, timeout=30):
@@ -112,11 +117,13 @@ def build_row(manifest_url, data, catalog_row, parent_manifest_url=""):
     """Build a result row dict from a fetched manifest JSON."""
     meta = parse_iiif_metadata(data)
     extent = meta.get("extent", "")
+    ark = catalog_row.get("ark", "")
     return {
         "manifest_url": manifest_url,
         "parent_manifest_url": parent_manifest_url,
         "source_metadata_id": catalog_row.get("source_metadata_id", ""),
-        "ark": catalog_row.get("ark", ""),
+        "ark": ark,
+        "dpul_url": ark_to_dpul_url(ark) if not parent_manifest_url else "",
         "title": meta.get("title", ""),
         "creator": meta.get("creator", ""),
         "date": meta.get("date", ""),
@@ -137,7 +144,9 @@ def error_row(manifest_url, catalog_row, error, parent_manifest_url=""):
     row["manifest_url"] = manifest_url
     row["parent_manifest_url"] = parent_manifest_url
     row["source_metadata_id"] = catalog_row.get("source_metadata_id", "")
-    row["ark"] = catalog_row.get("ark", "")
+    ark = catalog_row.get("ark", "")
+    row["ark"] = ark
+    row["dpul_url"] = ark_to_dpul_url(ark) if not parent_manifest_url else ""
     row["error"] = str(error)
     return row
 
