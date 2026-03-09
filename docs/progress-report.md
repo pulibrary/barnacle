@@ -20,12 +20,8 @@ completed (~50.7%). Pages completed are approximately 199,658 of 420,133 total (
 | 05–08   | 1,401     | 218,189 | Pending |
 | **Total in scope** | **2,852** | **420,133** | |
 
-Tranches 05–08 use the same page-balanced structure as tranches 03–04 (~350 manifests,
-~54,500 pages each, maximum estimated wall time 13–17 hours per tranche).
-
-One additional manifest — a 16th-century compendium of English statutes (1,859 pages,
-printed in Gothic/blackletter typeface, `tranche-oversized.txt`) — has been set aside
-as out of scope (see Section 2).
+We have balanced to tranches to include roughly the same number of pages (~350 manifests,
+~54,500 pages each), with a maximum estimated run time of 13-17 hours per tranche.
 
 ---
 
@@ -36,10 +32,14 @@ as out of scope (see Section 2).
 A small number of very large items have caused the Kraken OCR engine to time out on
 individual pages during processing.
 
-One item has been set aside entirely: a 16th-century compendium of English statutes
-(1,859 pages), printed in a Gothic/blackletter typeface. The model we are using
-(`catmus-print-fondue-large`) was not trained on that script and produces unusable
-output. It will not be resubmitted.
+One item has been set aside entirely: a 16th-century compendium of
+English statutes (1,859 pages), printed in a Gothic/blackletter
+typeface. The model we are using (`catmus-print-fondue-large`) was not
+trained on that script and produces unusable output. It will not be
+resubmitted. Sasha may wish to review the remaining volumes (see
+Section 3) to weed out any other unprocessable books before they are
+fed to kraken.
+
 
 A second large item — Savary's *Universal Dictionary of Trade and Commerce*, vol. 1
 (~1,106 pages) — timed out partway through its initial run, completing approximately
@@ -91,5 +91,3 @@ bibliographic identifiers).
   appear in the tranche files and no OCR has been attempted for them.
 - The `dpul_url` column links directly to each object in DPUL for easy browsing and
   verification.
-- The table is joinable with `barnacle report-batch` output on `manifest_url` to
-  produce a catalog-enriched OCR report.
