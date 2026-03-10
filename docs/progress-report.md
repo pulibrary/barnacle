@@ -1,13 +1,13 @@
 # Lapidus OCR Progress Report
 
-*Date: 2026-03-09*
+*Date: 2026-03-10*
 
 ---
 
 ## 1. Progress
 
-We are roughly halfway through the corpus. Of 2,852 manifests in scope, 1,447 have been
-completed (~50.7%). Pages completed are approximately 199,658 of 420,133 total (~47.5%).
+We are roughly halfway through the corpus. Of 2,852 manifests in scope, 1,448 have been
+completed (~50.8%). Pages recorded are approximately 198,173 of 420,133 total (~47.2%).
 
 ### Summary table
 
@@ -16,7 +16,7 @@ completed (~50.7%). Pages completed are approximately 199,658 of 420,133 total (
 | 01      | 500       | 56,730 | Complete |
 | 02a     | 249       | 36,117 | Complete (1 skipped — bad manifest on figgy side) |
 | 03      | 351       | 54,549 | Complete (349/351; 1 partial set aside, 1 SLURM failure) |
-| 04      | 351       | 54,548 | Complete (350/351; Savary vol. 1 resubmitting final ~330 pages) |
+| 04      | 351       | 52,732 | Complete (351/351) |
 | 05–08   | 1,401     | 218,189 | Pending |
 | **Total in scope** | **2,852** | **420,133** | |
 
@@ -42,9 +42,9 @@ fed to kraken.
 
 
 A second large item — Savary's *Universal Dictionary of Trade and Commerce*, vol. 1
-(~1,106 pages) — timed out partway through its initial run, completing approximately
-775 pages. It has been resubmitted to finish the remaining ~330 pages. The sibling
-volume (vol. 2, ~971 pages) is queued in tranche 06 and has not yet been processed.
+(~1,106 pages) — timed out partway through its initial run but was resubmitted and
+has now completed. The sibling volume (vol. 2, ~971 pages) is queued in tranche 06
+and has not yet been processed.
 
 ### Processing tempo
 
