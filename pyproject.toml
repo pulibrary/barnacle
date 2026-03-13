@@ -1,6 +1,6 @@
 [project]
 name = "barnacle"
-version = "0.3.3"
+version = "0.3.4"
 description = "IIIF-based OCR/ATR tooling and pipelines for high-quality text extraction from scanned resources."
 authors = [
   {name = "Cliff Wulfman", email = "cwulfman@princeton.edu"},
