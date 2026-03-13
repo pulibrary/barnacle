@@ -152,14 +152,15 @@ def append_record(output_path: Path, record: dict[str, Any]) -> None:
 
 def run_report_path(output_path: Path) -> Path:
     """Sidecar path for a manifest JSONL output file."""
-    return output_path.with_suffix(".run.json")
+    run_dir = output_path.parent / "run_reports"
+    return run_dir / output_path.with_suffix(".run.json").name
 
 
 def write_run_report(output_path: Path, report: dict) -> None:
     """Write (overwrite) the sidecar run report as pretty-printed JSON."""
-    run_report_path(output_path).write_text(
-        json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    path = run_report_path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def read_jsonl_records(path: Path) -> list[dict]:

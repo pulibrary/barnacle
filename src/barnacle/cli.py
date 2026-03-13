@@ -566,16 +566,17 @@ def report_batch_cmd(
 
             total = data.get("pages_total_in_manifest", 0)
             processed = data.get("pages_processed", 0)
+            skipped = data.get("pages_skipped", 0)
             failed = data.get("pages_failed", "")
             timed_out = data.get("pages_timed_out", "")
             elapsed = data.get("total_elapsed_s", "")
 
-            if total and processed == total:
+            if total and (processed + skipped) == total:
                 status = "complete"
             else:
                 status = "partial"
 
-            completion_pct = round(processed / total * 100, 1) if total else ""
+            completion_pct = round((processed + skipped) / total * 100, 1) if total else ""
             avg_time = round(elapsed / processed, 2) if (elapsed != "" and processed) else ""
 
             writer.writerow({
